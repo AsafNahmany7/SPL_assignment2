@@ -33,4 +33,11 @@ public class TrackedObject {
     public List<CloudPoint> getCoordinates() {
         return coordinates;
     }
+
+    ///////לבדוק
+    public LandMark toLandMark() {
+        LandMark landmark = new LandMark(this.id, this.description);
+        landmark.setCoordinates(new ArrayList<>(this.coordinates)); // מעתיקים את הקואורדינטות
+        return landmark;
+    }
 }

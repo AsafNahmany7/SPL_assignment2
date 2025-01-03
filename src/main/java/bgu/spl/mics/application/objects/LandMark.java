@@ -38,4 +38,10 @@ public class LandMark {
     }
 
 
+    ////לבדוק
+    public boolean equalsTrackedObject(TrackedObject trackedObject) {
+        return this.id.equals(trackedObject.getId());
+    }
+
+
 }

@@ -44,6 +44,8 @@ public class TimeService extends MicroService {
                 terminate();
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
+            } finally {
+                terminate(); // ווידוא קריאה ל-terminate גם במקרה של חריגה
             }
         });
 

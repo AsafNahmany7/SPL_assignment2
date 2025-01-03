@@ -33,4 +33,5 @@ public class Pose {
     public void setYaw(float yaw) {
         this.yaw = yaw;
     }
+    public int getTime() {return time;}
 }

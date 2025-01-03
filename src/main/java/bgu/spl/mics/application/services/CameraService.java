@@ -50,7 +50,6 @@ public class CameraService extends MicroService {
 
         // הרשמה ל-TerminatedBroadcast
         subscribeBroadcast(TerminatedBroadcast.class, terminated -> {
-            System.out.println("CameraService received termination from: " + terminated.getServiceName());
             terminate();
         });
 
