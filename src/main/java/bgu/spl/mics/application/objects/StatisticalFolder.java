@@ -1,4 +1,5 @@
 package bgu.spl.mics.application.objects;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
@@ -7,75 +8,40 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  * the number of objects detected and tracked, and the number of landmarks identified.
  */
 public class StatisticalFolder {
-    private int systemRuntime;
-    private int numDetectedObjects;
-    private int numTrackedObjects;
-    private int numLandmarks;
+    private final AtomicInteger systemRuntime = new AtomicInteger(0);
+    private final AtomicInteger numDetectedObjects = new AtomicInteger(0);
+    private final AtomicInteger numTrackedObjects = new AtomicInteger(0);
+    private final AtomicInteger numLandmarks = new AtomicInteger(0);
 
-
-    private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
-
-    public int getSystemRuntime() {
-        lock.readLock().lock();
-        try {
-            return systemRuntime;
-        } finally {
-            lock.readLock().unlock();
-        }
+    public void incrementSystemRuntime() {
+        systemRuntime.incrementAndGet();
     }
 
     public void incrementNumDetectedObjects() {
-        lock.writeLock().lock();
-        try {
-            numDetectedObjects++;
-        } finally {
-            lock.writeLock().unlock();
-        }
+        numDetectedObjects.incrementAndGet();
     }
 
     public void incrementNumTrackedObjects() {
-        lock.writeLock().lock();
-        try {
-            numTrackedObjects++;
-        } finally {
-            lock.writeLock().unlock();
-        }
+        numTrackedObjects.incrementAndGet();
     }
 
     public void incrementNumLandmarks() {
-        lock.writeLock().lock();
-        try {
-            numLandmarks++;
-        } finally {
-            lock.writeLock().unlock();
-        }
+        numLandmarks.incrementAndGet();
     }
 
+    public int getSystemRuntime() {
+        return systemRuntime.get();
+    }
     public int getNumDetectedObjects() {
-        lock.readLock().lock();
-        try {
-            return numDetectedObjects;
-        } finally {
-            lock.readLock().unlock();
-        }
+        return numDetectedObjects.get();
     }
 
     public int getNumTrackedObjects() {
-        lock.readLock().lock();
-        try {
-            return numTrackedObjects;
-        } finally {
-            lock.readLock().unlock();
-        }
+        return numTrackedObjects.get();
     }
 
     public int getNumLandmarks() {
-        lock.readLock().lock();
-        try {
-            return numLandmarks;
-        } finally {
-            lock.readLock().unlock();
-        }
+        return numLandmarks.get();
     }
 
 }

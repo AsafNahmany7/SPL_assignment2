@@ -1,5 +1,6 @@
 package bgu.spl.mics.application.objects;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -20,7 +21,8 @@ public class GPSIMU {
 
     public GPSIMU() {
         currentTick = 0;
-        status = status.ERROR;
+        status = status.UP;
+        List<Pose> PoseList = new ArrayList<Pose>();
     }
 
     public int getCurrentTick() {

@@ -22,10 +22,10 @@ public class LiDarWorkerTracker {
     private List<TrackedObject> lastTrackedObjects;
 
 
-    public LiDarWorkerTracker(int id, int frequencey,status status) {
+    public LiDarWorkerTracker(int id, int frequencey) {
         this.id = id;
         this.frequencey = frequencey;
-        this.status = status;
+        status = status.UP;
         lastTrackedObjects = new ArrayList<>();
     }
     public int getId() {
