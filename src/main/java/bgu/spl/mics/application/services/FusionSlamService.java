@@ -41,7 +41,7 @@ public class FusionSlamService extends MicroService {
     protected void initialize() {
         // Subscribe to TickBroadcast
         subscribeBroadcast(TickBroadcast.class, tick -> {
-            // Optional: Logic for periodic actions
+            // לחשוב אם צריך להכניס כאן פעולות
         });
 
         // Subscribe to TrackedObjectsEvent

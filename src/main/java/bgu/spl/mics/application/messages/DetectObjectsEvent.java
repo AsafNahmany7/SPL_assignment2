@@ -8,9 +8,11 @@ import bgu.spl.mics.application.objects.StampedDetectedObjects;
  */
 public class DetectObjectsEvent implements Event<Boolean> {
     private final StampedDetectedObjects detectedObjects;
+    private final int cameraFrequency;
 
-    public DetectObjectsEvent(StampedDetectedObjects detectedObjects) {
+    public DetectObjectsEvent(StampedDetectedObjects detectedObjects, int cameraFrequency) {
         this.detectedObjects = detectedObjects;
+        this.cameraFrequency = cameraFrequency;
     }
 
     public StampedDetectedObjects getDetectedObjects() {
