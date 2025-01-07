@@ -22,6 +22,15 @@ public class LiDarDataBase {
         return stampedCloud;
     }
 
+    public StampedCloudPoints getStampedCloudByTime(int time) {
+        for (StampedCloudPoints stampedCloudPoints : stampedCloud) {
+            if (stampedCloudPoints.getTime() == time)
+                return stampedCloudPoints;
+
+        }
+        return null;
+    }
+
     private LiDarDataBase(){
         this.stampedCloud = new ArrayList<>();
     }
@@ -39,6 +48,10 @@ public class LiDarDataBase {
             throw new RuntimeException("Failed to parse LiDAR data from file: " + filePath);
         }
         return LDB;
+    }
+
+    public static LiDarDataBase getInstance() {
+        return LiDarDataBaseHolder.INSTANCE;
     }
 
 

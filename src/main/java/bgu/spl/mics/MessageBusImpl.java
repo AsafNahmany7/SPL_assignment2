@@ -24,7 +24,6 @@ public class MessageBusImpl implements MessageBus {
 
 	private MessageBusImpl() {}
 
-	// שיטה סטטית להחזרת המופע היחיד
 	public static MessageBus getInstance() {
 		return MessageBus;
 	}

@@ -16,8 +16,9 @@ public class FusionSlam {
 
     private static class FusionSlamHolder {
         private static final FusionSlam INSTANCE = new FusionSlam();
-
     }
+
+
     private FusionSlam() {
         this.landmarks = new ArrayList<>();
         this.poses = new ArrayList<>();
