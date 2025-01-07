@@ -9,6 +9,15 @@ import bgu.spl.mics.application.objects.GPSIMU;
 import bgu.spl.mics.application.objects.Pose;
 
 import java.util.List;
+import java.util.stream.Collectors;
+
+import com.google.gson.Gson;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
 
 /**
  * PoseService is responsible for maintaining the robot's current pose (position and orientation)
@@ -56,11 +65,39 @@ public class PoseService extends MicroService {
         // Subscribe to CrashedBroadcast
         subscribeBroadcast(CrashedBroadcast.class, crashed -> {
             System.out.println("PoseService received crash notification from: " + crashed.getServiceName());
+            updateOutputWithPoses(); // עדכון המידע בקובץ output.json
         });
 
         // Subscribe to TerminatedBroadcast
         subscribeBroadcast(TerminatedBroadcast.class, terminated -> {
             terminate();
         });
+    }
+
+    /**
+     * Updates the output.json file with all poses up to the current tick.
+     */
+    private void updateOutputWithPoses() {
+        String outputFilePath = "output.json";
+        try (FileReader reader = new FileReader(outputFilePath)) {
+            // Load the existing JSON file
+            Gson gson = new Gson();
+            JsonObject output = JsonParser.parseReader(reader).getAsJsonObject();
+
+            // הוספת ה-Poses עד לרגע הנוכחי
+            List<Pose> posesUpToNow = gpsimu.getPoseList().stream()
+                    .filter(p -> p.getTime() <= currentTick)
+                    .collect(Collectors.toList());
+
+            output.add("poses", gson.toJsonTree(posesUpToNow));
+
+            // Write the updated JSON back to the file
+            try (FileWriter writer = new FileWriter(outputFilePath)) {
+                gson.toJson(output, writer);
+            }
+            System.out.println("Poses updated in " + outputFilePath);
+        } catch (IOException e) {
+            System.err.println("Failed to update poses: " + e.getMessage());
+        }
     }
 }

@@ -27,11 +27,12 @@ public class Camera {
     private status status;
     private List<StampedDetectedObjects> stampdetectedObjects;
 
-    public Camera(int id, int frequency, status status) {
+    public Camera(int id, int frequency, status status, String FilePath) {
         this.id = id;
         this.frequency = frequency;
         this.status = status;
         stampdetectedObjects = new ArrayList<>();
+        loadDetectedObjectsFromJson(FilePath);
     }
     public int getId() {
         return id;
@@ -42,23 +43,13 @@ public class Camera {
     public status getStatus() {
         return status;
     }
-
     public List<StampedDetectedObjects> getDetectedObjects() {
         return stampdetectedObjects;
     }
-
     public void setStatus(status newStatus) {
         this.status = newStatus;
     }
 
-    //*****לא בטוח שצריך את השיטה הזאת אחרי שהוספתי את loadDetectedObjectsFromJson....*****
-
-    public void addDetectedObject(StampedDetectedObjects detectedObject) {
-        if (detectedObject == null)
-            return;
-        if (!stampdetectedObjects.contains(detectedObject))
-            stampdetectedObjects.add(detectedObject);
-    }
 
     public void loadDetectedObjectsFromJson(String filePath) {
         Gson gson = new Gson();
