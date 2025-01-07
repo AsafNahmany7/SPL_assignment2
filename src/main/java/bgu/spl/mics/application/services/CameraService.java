@@ -42,9 +42,9 @@ public class CameraService extends MicroService {
         subscribeBroadcast(TickBroadcast.class, tick -> {
             if (camera.getStatus() == Camera.status.UP) {
                 if (camera.getFrequency() < tick.getCurrentTick()) {
-                    StampedDetectedObjects detectedObjects = camera.detectObjectsAtTime(tick.getCurrentTick() - camera.getFrequency());
-                    if (detectedObjects != null && !detectedObjects.getDetectedObjects().isEmpty()) {
-                        sendEvent(new DetectObjectsEvent(detectedObjects, camera.getFrequency()));
+                    StampedDetectedObjects stampdetectedObjects = camera.detectObjectsAtTime(tick.getCurrentTick() - camera.getFrequency());
+                    if (stampdetectedObjects != null && !stampdetectedObjects.getDetectedObjects().isEmpty()) {
+                        sendEvent(new DetectObjectsEvent(stampdetectedObjects, camera.getFrequency()));
                     }
                 }
             }

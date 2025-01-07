@@ -25,13 +25,13 @@ public class Camera {
     private final int id;
     private final int frequency;
     private status status;
-    private List<StampedDetectedObjects> detectedObjects;
+    private List<StampedDetectedObjects> stampdetectedObjects;
 
     public Camera(int id, int frequency, status status) {
         this.id = id;
         this.frequency = frequency;
         this.status = status;
-        detectedObjects = new ArrayList<>();
+        stampdetectedObjects = new ArrayList<>();
     }
     public int getId() {
         return id;
@@ -44,7 +44,7 @@ public class Camera {
     }
 
     public List<StampedDetectedObjects> getDetectedObjects() {
-        return detectedObjects;
+        return stampdetectedObjects;
     }
 
     public void setStatus(status newStatus) {
@@ -56,8 +56,8 @@ public class Camera {
     public void addDetectedObject(StampedDetectedObjects detectedObject) {
         if (detectedObject == null)
             return;
-        if (!detectedObjects.contains(detectedObject))
-            detectedObjects.add(detectedObject);
+        if (!stampdetectedObjects.contains(detectedObject))
+            stampdetectedObjects.add(detectedObject);
     }
 
     public void loadDetectedObjectsFromJson(String filePath) {
@@ -68,7 +68,7 @@ public class Camera {
             // טוען את המידע למבנה הנתונים של המצלמה
             String cameraKey = "camera" + id;
             if (data.containsKey(cameraKey)) {
-                detectedObjects = data.get(cameraKey);
+                stampdetectedObjects = data.get(cameraKey);
             } else {
                 System.out.println("No data found for camera ID: " + id);
             }
@@ -83,8 +83,8 @@ public class Camera {
             return null;
         }
         // חיפוש אובייקטים שזוהו בטיק הנוכחי
-        return detectedObjects.stream()
-                .filter(detectedObject -> detectedObject.getTime() == currentTime)
+        return stampdetectedObjects.stream()
+                .filter(stampdetectedObject -> stampdetectedObject.getTime() == currentTime)
                 .findFirst()
                 .orElse(null);
     }
