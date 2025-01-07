@@ -8,6 +8,7 @@ import bgu.spl.mics.application.messages.TerminatedBroadcast;
 import bgu.spl.mics.application.messages.TickBroadcast;
 import bgu.spl.mics.application.objects.Camera;
 import bgu.spl.mics.application.objects.StampedDetectedObjects;
+import bgu.spl.mics.application.objects.StatisticalFolder;
 
 /**
  * CameraService is responsible for processing data from the camera and
@@ -44,6 +45,11 @@ public class CameraService extends MicroService {
                 if (camera.getFrequency() < tick.getCurrentTick()) {
                     StampedDetectedObjects stampdetectedObjects = camera.detectObjectsAtTime(tick.getCurrentTick() - camera.getFrequency());
                     if (stampdetectedObjects != null && !stampdetectedObjects.getDetectedObjects().isEmpty()) {
+
+                        StatisticalFolder statFolder = StatisticalFolder.getInstance();
+                        int numbersOfObjects = stampdetectedObjects.getDetectedObjects().size();
+                        statFolder.setNumDetectedObjects(numbersOfObjects);
+
                         sendEvent(new DetectObjectsEvent(stampdetectedObjects, camera.getFrequency()));
                     }
                 }
@@ -52,6 +58,7 @@ public class CameraService extends MicroService {
 
         // הרשמה ל-TerminatedBroadcast
         subscribeBroadcast(TerminatedBroadcast.class, terminated -> {
+            camera.setStatus(Camera.status.DOWN);
             terminate();
         });
 

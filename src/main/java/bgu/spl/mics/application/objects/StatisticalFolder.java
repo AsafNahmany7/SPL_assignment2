@@ -8,25 +8,41 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  * the number of objects detected and tracked, and the number of landmarks identified.
  */
 public class StatisticalFolder {
-    private final AtomicInteger systemRuntime = new AtomicInteger(0);
-    private final AtomicInteger numDetectedObjects = new AtomicInteger(0);
-    private final AtomicInteger numTrackedObjects = new AtomicInteger(0);
-    private final AtomicInteger numLandmarks = new AtomicInteger(0);
+    private  AtomicInteger systemRuntime ;
+    private  AtomicInteger numDetectedObjects;
+    private  AtomicInteger numTrackedObjects;
+    private  AtomicInteger numLandmarks;
+
+
+    private static class StatisticalFolderHolder {
+        private static final StatisticalFolder INSTANCE = new StatisticalFolder();
+    }
+    public StatisticalFolder() {
+        systemRuntime = new AtomicInteger(0);
+        numDetectedObjects = new AtomicInteger(0);
+        numTrackedObjects = new AtomicInteger(0);
+        numLandmarks = new AtomicInteger(0);
+    }
+    public static StatisticalFolder getInstance() {
+        return StatisticalFolderHolder.INSTANCE;
+    }
+
+
 
     public void incrementSystemRuntime() {
         systemRuntime.incrementAndGet();
     }
 
-    public void incrementNumDetectedObjects() {
-        numDetectedObjects.incrementAndGet();
+    public void setNumDetectedObjects(int newValue) {
+        numDetectedObjects.addAndGet(newValue);
     }
 
-    public void incrementNumTrackedObjects() {
-        numTrackedObjects.incrementAndGet();
+    public void setNumTrackedObjects(int newValue) {
+        numTrackedObjects.addAndGet(newValue);
     }
 
-    public void incrementNumLandmarks() {
-        numLandmarks.incrementAndGet();
+    public void incrementNumLandmarks(int newValue) {
+        numLandmarks.addAndGet(newValue);
     }
 
     public int getSystemRuntime() {
@@ -42,6 +58,6 @@ public class StatisticalFolder {
 
     public int getNumLandmarks() {
         return numLandmarks.get();
-    }
+    }//צריך לממש עדיין את העדכון איפה שמוסיפים landmarks
 
 }

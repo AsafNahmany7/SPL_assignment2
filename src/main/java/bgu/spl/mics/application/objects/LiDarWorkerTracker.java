@@ -46,5 +46,8 @@ public class LiDarWorkerTracker {
         if(!lastTrackedObjects.contains(trackedObject))
             lastTrackedObjects.add(trackedObject);
     }
+    public void setStatus(status status) {
+        this.status = status;
+    }
 
 }

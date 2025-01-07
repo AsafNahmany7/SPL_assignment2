@@ -68,6 +68,10 @@ public class LiDarService extends MicroService {
 
                     }
                     TrackedObjectsEvent EventToSend = new TrackedObjectsEvent(time,TrackedObjectsToSend);
+                    int numberOfTrackedObjects = EventToSend.getTrackedObjects().size();
+                    StatisticalFolder statsFolder = StatisticalFolder.getInstance();
+                    statsFolder.setNumTrackedObjects(numberOfTrackedObjects);
+
                     sendEvent(EventToSend);
                     }
             }
@@ -106,6 +110,7 @@ public class LiDarService extends MicroService {
 
         //terminate callback
         subscribeBroadcast(TerminatedBroadcast.class,(TerminatedBroadcast broadcast)->{
+            tracker.setStatus(LiDarWorkerTracker.status.DOWN);
             terminate();
         });
 
