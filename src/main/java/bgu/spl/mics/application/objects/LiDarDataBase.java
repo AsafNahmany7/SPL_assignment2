@@ -22,13 +22,17 @@ public class LiDarDataBase {
         return stampedCloud;
     }
 
-    public StampedCloudPoints getStampedCloudByTime(int time) {
+    public List<StampedCloudPoints> getStampedCloudsByTime(int time) {
+        //Assume correct input
+        List<StampedCloudPoints> RelevantStampedCloud = new ArrayList<>();
         for (StampedCloudPoints stampedCloudPoints : stampedCloud) {
-            if (stampedCloudPoints.getTime() == time)
-                return stampedCloudPoints;
+            if (stampedCloudPoints.getTime() == time){
+                RelevantStampedCloud.add(stampedCloudPoints);
+            }
+
 
         }
-        return null;
+        return RelevantStampedCloud;
     }
 
     private LiDarDataBase(){

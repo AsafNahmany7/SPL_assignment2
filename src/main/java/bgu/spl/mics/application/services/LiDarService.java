@@ -1,10 +1,13 @@
 package bgu.spl.mics.application.services;
 
+import bgu.spl.mics.Future;
 import bgu.spl.mics.MicroService;
 import bgu.spl.mics.application.messages.*;
 import bgu.spl.mics.application.objects.*;
 
+
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 
 /**
@@ -24,6 +27,8 @@ public class LiDarService extends MicroService {
      */
     private LiDarWorkerTracker tracker;
     private List<StampedDetectedObjects> DetectedObjectsbyTime;
+    private HashMap<String, TrackedObject> trackedObjectsMap;
+
     int time;
 
 
@@ -31,6 +36,7 @@ public class LiDarService extends MicroService {
         super("LidarWorker " + LiDarWorkerTracker.getId());
         tracker = LiDarWorkerTracker;
         DetectedObjectsbyTime = new ArrayList<>();
+        trackedObjectsMap = new HashMap<>();
     }
 
 
@@ -43,46 +49,67 @@ public class LiDarService extends MicroService {
      */
     @Override
     protected void initialize() {
+
+
+        //tick callback:
         subscribeBroadcast(TickBroadcast.class,(TickBroadcast tick)->{
             time = tick.getCurrentTick();
 
 
             for(StampedDetectedObjects detectedObject : DetectedObjectsbyTime ){
                 if(detectedObject.getTime() + tracker.getFrequencey() == time){
+
+                    List<TrackedObject> TrackedObjectsToSend = new ArrayList<>();
+
                     for(DetectedObject currentDetectedObject : detectedObject.getDetectedObjects()  ){
                         //Send the events to complete....
-
-
-
-
-                        TrackedObjectsEvent trackedEvent = new TrackedObjectsEvent(currentDetectedObject.);
-                        sendEvent();
+                        TrackedObject currentTrackedObject = trackedObjectsMap.get(currentDetectedObject.getId());
+                        TrackedObjectsToSend.add(currentTrackedObject);
 
                     }
+                    TrackedObjectsEvent EventToSend = new TrackedObjectsEvent(time,TrackedObjectsToSend);
+                    sendEvent(EventToSend);
+                    }
+            }
+
+
+        });
+
+        //DetectedObjectEvent callback
+
+        subscribeEvent(DetectObjectsEvent.class,(DetectObjectsEvent objEvent)->{
+            StampedDetectedObjects DetectedObjectList = objEvent.getDetectedObjects();
+            LiDarDataBase database = LiDarDataBase.getInstance();
+            List<StampedCloudPoints> CloudpointsOfObjects = database.getStampedCloudsByTime(DetectedObjectList.getTime());
+
+            for(DetectedObject current : DetectedObjectList.getDetectedObjects()  ){
+                List<CloudPoint> CloudPointsOfCurrent = new ArrayList<>();
+                boolean isFound = false;
+
+                for(StampedCloudPoints currentCloudPointStamped : CloudpointsOfObjects){
+
+                    if(currentCloudPointStamped.getId().equals(current.getId())&& !isFound){
+                        isFound = true;
+                        List<List<Double>> coordinates = currentCloudPointStamped.getCloudPoints();
+
+                        for(List<Double> coordinate : coordinates){
+                            CloudPoint SingularCloudOfCurrent = new CloudPoint(coordinate.get(0),coordinate.get(1));
+                            CloudPointsOfCurrent.add(SingularCloudOfCurrent);
+                        }
+                    }
+
                 }
+                TrackedObject TrackedInstance = new TrackedObject(current.getId(),DetectedObjectList.getTime(), current.getDescription(),CloudPointsOfCurrent );
+                trackedObjectsMap.put(TrackedInstance.getId(), TrackedInstance);
             }
         });
 
-        subscribeBroadcast(DetectObjectsEvent.class,(DetectObjectsEvent detectedOBJevent)-> {
-            StampedDetectedObjects ObjectsToProcess = detectedOBJevent.getDetectedObjects();
-            LiDarDataBase dataBase = LiDarDataBase.getInstance();
-            int time =  ObjectsToProcess.getTime();
-            StampedCloudPoints cloudpoint = dataBase.getStampedCloudByTime(time);
-
-
-
-
-
-
-
-
-
-        });
-
+        //terminate callback
         subscribeBroadcast(TerminatedBroadcast.class,(TerminatedBroadcast broadcast)->{
             terminate();
         });
 
+        //crash callback
         subscribeBroadcast(CrashedBroadcast.class,(CrashedBroadcast broadcast)->{
             System.out.println("CameraService received crash notification from: " + broadcast.getServiceName());
         });

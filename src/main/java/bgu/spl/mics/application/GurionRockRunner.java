@@ -20,7 +20,14 @@ public class GurionRockRunner {
         System.out.println("Hello World!");
 
         // TODO: Parse configuration file.
+
+
+
         // TODO: Initialize system components and services.
+
+
+
+
         // TODO: Start the simulation.
     }
 }
