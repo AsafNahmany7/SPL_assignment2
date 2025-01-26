@@ -9,6 +9,9 @@ import bgu.spl.mics.application.messages.TickBroadcast;
 import bgu.spl.mics.application.objects.Camera;
 import bgu.spl.mics.application.objects.StampedDetectedObjects;
 import bgu.spl.mics.application.objects.StatisticalFolder;
+import bgu.spl.mics.application.objects.FusionSlam;
+import bgu.spl.mics.application.objects.DetectedObject;
+
 
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
@@ -17,7 +20,7 @@ import com.google.gson.JsonParser;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
-
+import java.util.concurrent.CountDownLatch;
 
 /**
  * CameraService is responsible for processing data from the camera and
@@ -28,15 +31,17 @@ import java.io.IOException;
 public class CameraService extends MicroService {
     private final Camera camera;
     private final String outputFilePath = "output.json";
+    private final CountDownLatch latch;
 
     /**
      * Constructor for CameraService.
      *
      * @param camera The Camera object that this service will use to detect objects.
      */
-    public CameraService(Camera camera) {
+    public CameraService(Camera camera, CountDownLatch latch) {
         super("CameraService" + camera.getId());
         this.camera = camera;
+        this.latch = latch;
     }
 
     /**
@@ -46,13 +51,20 @@ public class CameraService extends MicroService {
      */
     @Override
     protected void initialize() {
+        System.out.println("cameraser initialize");
 
         // הרשמה לטיק
         subscribeBroadcast(TickBroadcast.class, tick -> {
             if (camera.getStatus() == Camera.status.UP) {
+                StampedDetectedObjects statisticObjects = camera.detectObjectsAtTime(tick.getCurrentTick());
+                if (statisticObjects != null && statisticObjects.getDetectedObjects() != null && !statisticObjects.getDetectedObjects().isEmpty()) {
+                    StatisticalFolder statFolder = StatisticalFolder.getInstance();
+                    int numbersOfObjects = statisticObjects.getDetectedObjects().size();
+                    statFolder.setNumDetectedObjects(numbersOfObjects);
+                }
                 if (camera.getFrequency() < tick.getCurrentTick()) {
                     StampedDetectedObjects stampdetectedObjects = camera.detectObjectsAtTime(tick.getCurrentTick() - camera.getFrequency());
-                    if (stampdetectedObjects != null && !stampdetectedObjects.getDetectedObjects().isEmpty()) {
+                    if (stampdetectedObjects != null && stampdetectedObjects.getDetectedObjects() != null && !stampdetectedObjects.getDetectedObjects().isEmpty()) {
                         boolean errorDetected = stampdetectedObjects.getDetectedObjects()
                                 .stream()
                                 .anyMatch(obj -> "ERROR".equals(obj.getId()));
@@ -60,11 +72,6 @@ public class CameraService extends MicroService {
                         if (errorDetected) {
                             handleSensorError(stampdetectedObjects); // Handle the error
                         } else {
-
-                        StatisticalFolder statFolder = StatisticalFolder.getInstance();
-                        int numbersOfObjects = stampdetectedObjects.getDetectedObjects().size();
-                        statFolder.setNumDetectedObjects(numbersOfObjects);
-
                         sendEvent(new DetectObjectsEvent(stampdetectedObjects, camera.getFrequency()));
                         }
                     }
@@ -74,112 +81,86 @@ public class CameraService extends MicroService {
 
         // הרשמה ל-TerminatedBroadcast
         subscribeBroadcast(TerminatedBroadcast.class, terminated -> {
-            camera.setStatus(Camera.status.DOWN);
-            terminate();
+            System.out.println(this.getName() + " receive terminated ----------------");
+            camera.setStatus(Camera.status.DOWN);//****לא ברור מה משניהם צריך??****
+            terminate();//****לא ברור מה משניהם צריך??****
+            System.out.println(this.getName() + " after terminated ----------?????");
         });
 
         // הרשמה ל-CrashedBroadcast
         subscribeBroadcast(CrashedBroadcast.class, crashed -> {
             System.out.println("CameraService received crash notification from: " + crashed.getServiceName());
-            updateLastCamerasFrame(); // עדכון קובץ output.json
-            camera.setStatus(Camera.status.DOWN); //****לא ברור מה משניהם צריך??****
-            terminate();//****לא ברור מה משניהם צריך??****
+            updateLastCamerasFrame(); // עדכון המידע ב-FusionSlam
+            camera.setStatus(Camera.status.DOWN);
+            terminate();
         });
+        latch.countDown();
+        System.out.println("fusionslamser End initialized ]]]]]]]]]]");
     }
 
-    /**
-     * Handles a sensor error, updates the output.json file, and broadcasts a termination signal.
-     *
-     * @param detectedObjects The detected objects that include the error.
-     */
-    private void handleSensorError(StampedDetectedObjects detectedObjects) {
-        System.err.println("Error detected in camera: " + camera.getId() + ". Terminating all services.");
+/**
+ * Handles a sensor error, updates the FusionSlam output, and broadcasts a termination signal.
+ *
+ * @param detectedObjects The detected objects that include the error.
+ */
+        private void handleSensorError(StampedDetectedObjects detectedObjects) {
+            System.err.println("Error detected in camera: " + camera.getId() + ". Terminating all services.");
 
-        // Update the output file with error details
-        updateErrorLog(detectedObjects);
+            // Update FusionSlam with error details
+            updateErrorLog(detectedObjects);
 
-        // Broadcast CrashedBroadcast to stop all services
-        sendBroadcast(new CrashedBroadcast(getName()));
-    }
+            // Broadcast CrashedBroadcast to stop all services
+            sendBroadcast(new CrashedBroadcast(getName()));
+        }
 
-    /**
-     * Updates the output.json file with error details and the last frame of detected objects.
-     *
-     * @param detectedObjects The detected objects that include the error.
-     */
-    private void updateErrorLog(StampedDetectedObjects detectedObjects) {
-        try (FileReader reader = new FileReader(outputFilePath)) {
-            // Load the existing JSON file
-            Gson gson = new Gson();
-            JsonObject output = JsonParser.parseReader(reader).getAsJsonObject();
+/**
+ * Updates the FusionSlam output with error details and the last frame of detected objects.
+ *
+ * @param detectedObjects The detected objects that include the error.
+ */
+        private void updateErrorLog(StampedDetectedObjects detectedObjects) {
+            FusionSlam fusionSlam = FusionSlam.getInstance();
 
             // Find the error description from the detected objects
             String errorDescription = detectedObjects.getDetectedObjects().stream()
                     .filter(obj -> "ERROR".equals(obj.getId()))
                     .findFirst()
-                    .map(obj -> obj.getDescription())
+                    .map(DetectedObject::getDescription)
                     .orElse("Unknown error");
 
-            // Update the output file with error details
-            output.addProperty("error", errorDescription);
-            output.addProperty("faultySensor", "Camera" + camera.getId());
+            JsonObject errorDetails = new JsonObject();
+            errorDetails.addProperty("error", errorDescription);
+            errorDetails.addProperty("faultySensor", "Camera" + camera.getId());
 
-            // Update the last frame of the camera
             JsonObject lastCamerasFrame = new JsonObject();
             JsonObject cameraData = new JsonObject();
             cameraData.addProperty("time", detectedObjects.getTime());
-            cameraData.add("detectedObjects", gson.toJsonTree(detectedObjects.getDetectedObjects()));
+            cameraData.add("detectedObjects", new Gson().toJsonTree(detectedObjects.getDetectedObjects()));
             lastCamerasFrame.add("Camera" + camera.getId(), cameraData);
-            output.add("lastCamerasFrame", lastCamerasFrame);
 
-            // Write the updated JSON back to the file
-            try (FileWriter writer = new FileWriter(outputFilePath)) {
-                gson.toJson(output, writer);
+            errorDetails.add("lastCamerasFrame", lastCamerasFrame);
+
+            fusionSlam.updateOutput("errorDetails", errorDetails);
+        }
+
+/**
+ * Updates the last frame of the camera in the FusionSlam output.
+ */
+        private void updateLastCamerasFrame() {
+            if (camera.getDetectedObjects().isEmpty()) {
+                System.err.println("No frames available for Camera" + camera.getId() + " to update.");
+                return;
             }
-            System.out.println("Error log updated in " + outputFilePath);
-        } catch (IOException e) {
-            System.err.println("Failed to update error log: " + e.getMessage());
-        }
-    }
 
-    /**
-     * Updates the last frame of the camera in the output.json file.
-     */
-    private void updateLastCamerasFrame() {
-        String outputFilePath = "output.json";
-
-        // בדיקה אם רשימת המסגרות ריקה
-        if (camera.getDetectedObjects().isEmpty()) {
-            System.err.println("No frames available for Camera" + camera.getId() + " to update.");
-            return;
-        }
-
-        try (FileReader reader = new FileReader(outputFilePath)) {
-            // Load the existing JSON file
-            Gson gson = new Gson();
-            JsonObject output = JsonParser.parseReader(reader).getAsJsonObject();
-
-            // Create the last frame for the camera
-            JsonObject lastCamerasFrame = output.has("lastCamerasFrame")
-                    ? output.getAsJsonObject("lastCamerasFrame")
-                    : new JsonObject();
-
+            FusionSlam fusionSlam = FusionSlam.getInstance();
+            JsonObject lastCamerasFrame = new JsonObject();
             JsonObject cameraData = new JsonObject();
-            StampedDetectedObjects lastFrame = camera.getDetectedObjects().get(camera.getDetectedObjects().size() - 1); // המסגרת האחרונה
+
+            StampedDetectedObjects lastFrame = camera.getDetectedObjects().get(camera.getDetectedObjects().size() - 1);
             cameraData.addProperty("time", lastFrame.getTime());
-            cameraData.add("detectedObjects", gson.toJsonTree(lastFrame.getDetectedObjects()));
+            cameraData.add("detectedObjects", new Gson().toJsonTree(lastFrame.getDetectedObjects()));
             lastCamerasFrame.add("Camera" + camera.getId(), cameraData);
 
-            // Update the output file
-            output.add("lastCamerasFrame", lastCamerasFrame);
-
-            // Write the updated JSON back to the file
-            try (FileWriter writer = new FileWriter(outputFilePath)) {
-                gson.toJson(output, writer);
-            }
-            System.out.println("Last camera frame updated in " + outputFilePath);
-        } catch (IOException e) {
-            System.err.println("Failed to update last camera frame: " + e.getMessage());
+            fusionSlam.updateOutput("lastCamerasFrame", lastCamerasFrame);
         }
-    }
-}
+ }

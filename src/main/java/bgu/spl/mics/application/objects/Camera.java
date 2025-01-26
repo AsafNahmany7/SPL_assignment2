@@ -24,12 +24,14 @@ public class Camera {
 
     private final int id;
     private final int frequency;
+    String key;
     private status status;
     private List<StampedDetectedObjects> stampdetectedObjects;
 
-    public Camera(int id, int frequency, status status, String FilePath) {
+    public Camera(int id, int frequency, String key, status status, String FilePath) {
         this.id = id;
         this.frequency = frequency;
+        this.key = key;
         this.status = status;
         stampdetectedObjects = new ArrayList<>();
         loadDetectedObjectsFromJson(FilePath);
@@ -57,11 +59,11 @@ public class Camera {
             Type type = new TypeToken<Map<String, List<StampedDetectedObjects>>>() {}.getType();
             Map<String, List<StampedDetectedObjects>> data = gson.fromJson(reader, type);
             // טוען את המידע למבנה הנתונים של המצלמה
-            String cameraKey = "camera" + id;
+            String cameraKey = key;
             if (data.containsKey(cameraKey)) {
                 stampdetectedObjects = data.get(cameraKey);
             } else {
-                System.out.println("No data found for camera ID: " + id);
+                System.out.println("No data found for camera: " + key);
             }
         } catch (IOException e) {
             System.err.println("Failed to load JSON: " + e.getMessage());

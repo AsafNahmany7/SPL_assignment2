@@ -14,6 +14,7 @@ import bgu.spl.mics.application.objects.TrackedObject;
 
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.concurrent.CountDownLatch;
 
 /**
  * FusionSlamService integrates data from multiple sensors to build and update
@@ -22,14 +23,16 @@ import java.util.stream.Collectors;
 public class FusionSlamService extends MicroService {
     private final FusionSlam fusionSlam;
     private Pose currentPose; // Current robot pose
+    private final CountDownLatch latch;
 
     /**
      * Constructor for FusionSlamService.
      */
-    public FusionSlamService() {
+    public FusionSlamService(CountDownLatch latch) {
         super("FusionSlamService");
         this.fusionSlam = FusionSlam.getInstance();
         this.currentPose = null;
+        this.latch = latch;
     }
 
     /**
@@ -39,6 +42,7 @@ public class FusionSlamService extends MicroService {
      */
     @Override
     protected void initialize() {
+        System.out.println("fusionslamser initialize");
         // Subscribe to TickBroadcast
         subscribeBroadcast(TickBroadcast.class, tick -> {
             // לחשוב אם צריך להכניס כאן פעולות
@@ -51,8 +55,10 @@ public class FusionSlamService extends MicroService {
                         .stream()
                         .map(TrackedObject::toLandMark)
                         .collect(Collectors.toList());
-
-                fusionSlam.processTrackedObjects(trackedLandmarks, currentPose);
+                //למנוע מקרה קיצון שמקבל את הtracked ולא את הpose, ויקבל את הpose הרלוונטי רק בסיבוב הבא
+                if(currentPose.getTime() == trackedEvent.getTime()) {  /////יכול להיות שצריך לעשות synchronized פה ??
+                    fusionSlam.processTrackedObjects(trackedLandmarks, currentPose);
+                }
             }
         });
 
@@ -65,12 +71,16 @@ public class FusionSlamService extends MicroService {
 
         // Subscribe to TerminatedBroadcast
         subscribeBroadcast(TerminatedBroadcast.class, terminated -> {
-            terminate();
+            System.out.println("fusionslamser receive terminated ----------------");
+            this.terminate();
+            System.out.println("fusionslamser after receive terminated ----------??????");
         });
 
         // Subscribe to CrashedBroadcast
         subscribeBroadcast(CrashedBroadcast.class, crashed -> {
             System.out.println("FusionSlamService received crash notification from: " + crashed.getServiceName());
         });
+        latch.countDown();
+        System.out.println("fusionslamser End initialized ]]]]]]]]]]");
     }
 }

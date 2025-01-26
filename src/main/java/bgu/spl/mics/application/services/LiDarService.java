@@ -9,6 +9,7 @@ import bgu.spl.mics.application.objects.*;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 
 /**
  * LiDarService is responsible for processing data from the LiDAR sensor and
@@ -28,15 +29,16 @@ public class LiDarService extends MicroService {
     private LiDarWorkerTracker tracker;
     private List<StampedDetectedObjects> DetectedObjectsbyTime;
     private HashMap<String, TrackedObject> trackedObjectsMap;
-
+    private final CountDownLatch latch;//לא למחוק
     int time;
 
 
-    public LiDarService(LiDarWorkerTracker LiDarWorkerTracker) {
-        super("LidarWorker " + LiDarWorkerTracker.getId());
-        tracker = LiDarWorkerTracker;
+    public LiDarService(LiDarWorkerTracker tracker, CountDownLatch latch) {
+        super("LidarWorker " + tracker.getId());
+        this.tracker = tracker;// לא למחוק
         DetectedObjectsbyTime = new ArrayList<>();
         trackedObjectsMap = new HashMap<>();
+        this.latch = latch;//לא למחוק
     }
 
 
@@ -50,6 +52,7 @@ public class LiDarService extends MicroService {
     @Override
     protected void initialize() {
 
+        System.out.println("lidarser initialize");//לא למחוק
 
         //tick callback:
         subscribeBroadcast(TickBroadcast.class,(TickBroadcast tick)->{
@@ -118,5 +121,7 @@ public class LiDarService extends MicroService {
         subscribeBroadcast(CrashedBroadcast.class,(CrashedBroadcast broadcast)->{
             System.out.println("CameraService received crash notification from: " + broadcast.getServiceName());
         });
+        latch.countDown();//לא למחוק
+        System.out.println("fusionslamser End initialized ]]]]]]]]]]");//לא למחוק
     }
 }

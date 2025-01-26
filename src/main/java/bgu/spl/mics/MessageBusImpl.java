@@ -44,6 +44,7 @@ public class MessageBusImpl implements MessageBus {
 		if(!BrodcastSubscribersQueues.get(type).contains(m)) {
 			BrodcastSubscribersQueues.get(type).add(m);
 		}
+		System.out.println( m.getName() + "(M.Bus) subs to " + type);
 	}
 
 	@Override
@@ -88,7 +89,7 @@ public class MessageBusImpl implements MessageBus {
 	@Override
 	public <T> Future<T> sendEvent(Event<T> e) {
 		if(!EventsSubscribersQueues.containsKey(e.getClass())) {
-			System.out.println("No Such Event is listed please list it with a subscribing microservice first!");
+			System.out.println(e.getClass() + "No Such Event is listed please list it with a subscribing microservice first!");
 			return null;
 		}
 

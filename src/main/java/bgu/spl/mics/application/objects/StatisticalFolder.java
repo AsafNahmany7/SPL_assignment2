@@ -41,8 +41,8 @@ public class StatisticalFolder {
         numTrackedObjects.addAndGet(newValue);
     }
 
-    public void incrementNumLandmarks(int newValue) {
-        numLandmarks.addAndGet(newValue);
+    public void incrementNumLandmarks() {
+        numLandmarks.incrementAndGet();
     }
 
     public int getSystemRuntime() {

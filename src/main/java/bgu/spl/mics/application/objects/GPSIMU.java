@@ -33,7 +33,7 @@ public class GPSIMU {
     public GPSIMU() {
         currentTick = 0;
         status = status.UP;
-        List<Pose> PoseList = new ArrayList<Pose>();
+        PoseList = new ArrayList<>();
     }
 
     public int getCurrentTick() {

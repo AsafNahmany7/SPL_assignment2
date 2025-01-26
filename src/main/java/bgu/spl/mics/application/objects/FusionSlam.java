@@ -1,5 +1,8 @@
 package bgu.spl.mics.application.objects;
 
+import com.google.gson.JsonObject;
+import com.google.gson.JsonArray;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -13,15 +16,16 @@ public class FusionSlam {
     // Singleton instance holder
     private List<LandMark> landmarks;
     private List<Pose> poses;
+    private JsonObject outputData;
 
     private static class FusionSlamHolder {
         private static final FusionSlam INSTANCE = new FusionSlam();
     }
 
-
     private FusionSlam() {
         this.landmarks = new ArrayList<>();
         this.poses = new ArrayList<>();
+        this.outputData = new JsonObject();
     }
 
     public static FusionSlam getInstance() {
@@ -41,17 +45,18 @@ public class FusionSlam {
         this.landmarks.add(landmark);
     }
 
-    /////לבדוק
     public synchronized void processTrackedObjects(List<LandMark> trackedLandmarks, Pose pose) {
         for (LandMark landmark : trackedLandmarks) {
             // המרת הקואורדינטות למערכת הגלובלית
             List<CloudPoint> globalCoordinates = landmark.getCoordinates().stream()
-                    .map(localPoint -> transformToGlobal(pose, localPoint)) // שימוש בפונקציה המעודכנת
+                    .map(localPoint -> transformToGlobal(pose, localPoint))
                     .collect(Collectors.toList());
 
             if (!landmarks.contains(landmark)) {
                 landmark.setCoordinates(globalCoordinates); // Landmark חדש
                 addLandmark(landmark);
+                StatisticalFolder statFolder = StatisticalFolder.getInstance();
+                statFolder.incrementNumLandmarks();
             } else {
                 // Landmark קיים - עדכון ממוצע
                 LandMark existingLandmark = landmarks.get(landmarks.indexOf(landmark));
@@ -62,31 +67,93 @@ public class FusionSlam {
         addPose(pose); // עדכון המיקום הנוכחי של הרובוט
     }
 
-
-    /////לבדוק
     public CloudPoint transformToGlobal(Pose pose, CloudPoint localPoint) {
-        double thetaRad = Math.toRadians(pose.getYaw()); // המרה לרדיאנים
+        double thetaRad = Math.toRadians(pose.getYaw());
         double cosTheta = Math.cos(thetaRad);
         double sinTheta = Math.sin(thetaRad);
 
         double xGlobal = cosTheta * localPoint.getX() - sinTheta * localPoint.getY() + pose.getX();
         double yGlobal = sinTheta * localPoint.getX() + cosTheta * localPoint.getY() + pose.getY();
 
-        return new CloudPoint(xGlobal, yGlobal); // יצירת נקודה חדשה בקורדינטות הגלובליות
+        return new CloudPoint(xGlobal, yGlobal);
     }
 
-    /////לבדוק
     private List<CloudPoint> calculateAverage(List<CloudPoint> existing, List<CloudPoint> incoming) {
         List<CloudPoint> averagedCoordinates = new ArrayList<>();
-        int size = Math.min(existing.size(), incoming.size());
-        for (int i = 0; i < size; i++) {
+        int sizeMin = Math.min(existing.size(), incoming.size());
+        for (int i = 0; i < sizeMin; i++) {
             double avgX = (existing.get(i).getX() + incoming.get(i).getX()) / 2.0;
             double avgY = (existing.get(i).getY() + incoming.get(i).getY()) / 2.0;
             averagedCoordinates.add(new CloudPoint(avgX, avgY));
         }
+
+        if (existing.size() >= incoming.size()) {
+            for (int j = sizeMin; j < existing.size(); j++) {
+                averagedCoordinates.add(new CloudPoint(existing.get(j).getX(), existing.get(j).getY()));
+            }
+        } else {
+            for (int j = sizeMin; j < incoming.size(); j++) {
+                averagedCoordinates.add(new CloudPoint(incoming.get(j).getX(), incoming.get(j).getY()));
+            }
+        }
+
         return averagedCoordinates;
     }
 
+    // עדכון קובץ הפלט
+    public synchronized void updateOutput(String key, JsonObject value) {
+        outputData.add(key, value);
+    }
 
+    // הפקת נתוני פלט
+    public synchronized JsonObject generateOutput() {
+        JsonObject output = new JsonObject();
+        output.add("poses", generatePoseArray());
+        output.add("landMarks", generateLandmarkData());
+        output.add("statistics", generateStatistics());
+        return output;
+    }
 
+    private JsonArray generatePoseArray() {
+        JsonArray poseArray = new JsonArray();
+        for (Pose pose : poses) {
+            JsonObject poseJson = new JsonObject();
+            poseJson.addProperty("time", pose.getTime());
+            poseJson.addProperty("x", pose.getX());
+            poseJson.addProperty("y", pose.getY());
+            poseJson.addProperty("yaw", pose.getYaw());
+            poseArray.add(poseJson);
+        }
+        return poseArray;
+    }
+
+    private JsonObject generateLandmarkData() {
+        JsonObject landmarkData = new JsonObject();
+        for (LandMark landmark : landmarks) {
+            JsonObject landmarkJson = new JsonObject();
+            landmarkJson.addProperty("id", landmark.getId());
+            landmarkJson.addProperty("description", landmark.getDescription());
+
+            JsonArray coordinatesArray = new JsonArray();
+            for (CloudPoint point : landmark.getCoordinates()) {
+                JsonObject pointJson = new JsonObject();
+                pointJson.addProperty("x", point.getX());
+                pointJson.addProperty("y", point.getY());
+                coordinatesArray.add(pointJson);
+            }
+            landmarkJson.add("coordinates", coordinatesArray);
+            landmarkData.add(landmark.getId(), landmarkJson);
+        }
+        return landmarkData;
+    }
+
+    private JsonObject generateStatistics() {
+        StatisticalFolder stats = StatisticalFolder.getInstance();
+        JsonObject statsJson = new JsonObject();
+        statsJson.addProperty("systemRuntime", stats.getSystemRuntime());
+        statsJson.addProperty("numDetectedObjects", stats.getNumDetectedObjects());
+        statsJson.addProperty("numTrackedObjects", stats.getNumTrackedObjects());
+        statsJson.addProperty("numLandmarks", stats.getNumLandmarks());
+        return statsJson;
+    }
 }

@@ -1,8 +1,10 @@
 package bgu.spl.mics.application.services;
 
 import bgu.spl.mics.MicroService;
+import bgu.spl.mics.application.messages.TerminatedBroadcast;
 import bgu.spl.mics.application.messages.TickBroadcast;
 import bgu.spl.mics.application.objects.StatisticalFolder;
+import java.util.concurrent.CountDownLatch;
 
 /**
  * TimeService acts as the global timer for the system, broadcasting TickBroadcast messages
@@ -12,6 +14,9 @@ public class TimeService extends MicroService {
     private final int tickTime;
     private final int duration;
     private int currentTick;
+    private final CountDownLatch latch;
+    private Thread timerThread;
+
 
     /**
      * Constructor for TimeService.
@@ -19,11 +24,12 @@ public class TimeService extends MicroService {
      * @param tickTime  The duration of each tick in milliseconds.
      * @param duration  The total number of ticks before the service terminates.
      */
-    public TimeService(int tickTime, int duration) {
+    public TimeService(int tickTime, int duration, CountDownLatch latch) {
         super("TimeService");
         this.tickTime = tickTime;
         this.duration = duration;
         this.currentTick = 0;
+        this.latch = latch;
     }
 
     /**
@@ -32,27 +38,53 @@ public class TimeService extends MicroService {
      */
     @Override
     protected void initialize() {
+        System.out.println("timeser initialize and should wait");
+        try {
+            latch.await();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        System.out.println("timeser finish to wait");
         // Thread to simulate ticking
-        Thread timerThread = new Thread(() -> {
+        timerThread = new Thread(() -> {
             try {
                 StatisticalFolder statsFolder = StatisticalFolder.getInstance();
                 while (currentTick < duration) {
                     currentTick++;
                     sendBroadcast(new TickBroadcast(currentTick, duration));
+                    System.out.println("**sended tick" + currentTick);
                     statsFolder.incrementSystemRuntime();
                     Thread.sleep(tickTime);
                 }
                 // Final broadcast and terminate
                 sendBroadcast(new TickBroadcast(currentTick, duration)); // Last tick
-                terminate();
+                System.out.println("finished all the ticks,and suposed to terminate");
+                sendBroadcast(new TerminatedBroadcast("TimeService"));
+                System.out.println("sended terminate broadcats of timeservice");
+                this.terminate();
+                System.out.println("timeservice terminated-------");
+                if(timerThread != null){
+                    System.out.println("timeservice interupting <<<<<<{{{{");
+                    timerThread.interrupt();
+                    System.out.println("timeservice interupting >>>>>>>>}}}}}");
+                }
             } catch (InterruptedException e) {
+                System.out.println("timeservice catch------------");
                 Thread.currentThread().interrupt();
+                timerThread.interrupt();
             } finally {
-                terminate(); // ווידוא קריאה ל-terminate גם במקרה של חריגה
+                System.out.println("timeservice finally-----------");
+                this.terminate(); // ווידוא קריאה ל-terminate גם במקרה של חריגה
+                if(timerThread != null){
+                    System.out.println("timeservice interupting <<<<<<{{{{");
+                    timerThread.interrupt();
+                    System.out.println("timeservice interupting >>>>>>>>}}}}}");
+                }
             }
         });
 
         // Start the timer thread
         timerThread.start();
+        System.out.println("timerser End initialized ]]]]]]]]]]");
     }
 }

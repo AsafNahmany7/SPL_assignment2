@@ -9,7 +9,7 @@
     ],
     "camera_datas_path": "./camera_data.json"
   },
-  "LidarWorkers": {
+  "LiDarWorkers": {
     "LidarConfigurations": [
       {
         "id": 1,
