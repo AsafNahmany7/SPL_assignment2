@@ -75,11 +75,10 @@ public class PoseService extends MicroService {
             terminate();
         });
 
-// Subscribe to TerminatedBroadcast
+        // Subscribe to TerminatedBroadcast
         subscribeBroadcast(TerminatedBroadcast.class, terminated -> {
-            System.out.println("poseser receive terminated ----------------");
+            System.out.println(getName() + " received terminated broadcast.");
             terminate();
-            System.out.println("poseser receive terminated ----------??????");
         });
         latch.countDown();
     }

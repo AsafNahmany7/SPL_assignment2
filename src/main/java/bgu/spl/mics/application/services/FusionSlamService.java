@@ -80,6 +80,10 @@ public class FusionSlamService extends MicroService {
         subscribeBroadcast(CrashedBroadcast.class, crashed -> {
             System.out.println("FusionSlamService received crash notification from: " + crashed.getServiceName());
         });
+        subscribeBroadcast(TerminatedBroadcast.class, terminated -> {
+            System.out.println(getName() + " received terminated broadcast.");
+            terminate();
+        });
         latch.countDown();
         System.out.println("fusionslamser End initialized ]]]]]]]]]]");
     }

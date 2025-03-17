@@ -38,13 +38,13 @@ public class TimeService extends MicroService {
      */
     @Override
     protected void initialize() {
-        System.out.println("timeser initialize and should wait");
+        System.out.println("timeser initialize and should wait to latch");
         try {
             latch.await();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
-        System.out.println("timeser finish to wait");
+        System.out.println("timeser finish to wait for latch and should start sending ticks");
         // Thread to simulate ticking
         timerThread = new Thread(() -> {
             try {
@@ -61,7 +61,7 @@ public class TimeService extends MicroService {
                 System.out.println("finished all the ticks,and suposed to terminate");
                 sendBroadcast(new TerminatedBroadcast("TimeService"));
                 System.out.println("sended terminate broadcats of timeservice");
-                this.terminate();
+                terminate();
                 System.out.println("timeservice terminated-------");
                 if(timerThread != null){
                     System.out.println("timeservice interupting <<<<<<{{{{");
@@ -82,7 +82,10 @@ public class TimeService extends MicroService {
                 }
             }
         });
-
+        subscribeBroadcast(TerminatedBroadcast.class, terminated -> {
+            System.out.println(getName() + " received terminated broadcast.");
+            terminate();
+        });
         // Start the timer thread
         timerThread.start();
         System.out.println("timerser End initialized ]]]]]]]]]]");

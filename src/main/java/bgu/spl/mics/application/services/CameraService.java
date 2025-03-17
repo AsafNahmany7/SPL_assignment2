@@ -79,14 +79,6 @@ public class CameraService extends MicroService {
             }
         });
 
-        // הרשמה ל-TerminatedBroadcast
-        subscribeBroadcast(TerminatedBroadcast.class, terminated -> {
-            System.out.println(this.getName() + " receive terminated ----------------");
-            camera.setStatus(Camera.status.DOWN);//****לא ברור מה משניהם צריך??****
-            terminate();//****לא ברור מה משניהם צריך??****
-            System.out.println(this.getName() + " after terminated ----------?????");
-        });
-
         // הרשמה ל-CrashedBroadcast
         subscribeBroadcast(CrashedBroadcast.class, crashed -> {
             System.out.println("CameraService received crash notification from: " + crashed.getServiceName());
@@ -94,8 +86,13 @@ public class CameraService extends MicroService {
             camera.setStatus(Camera.status.DOWN);
             terminate();
         });
+        // הרשמה ל-TerminatedBroadcast
+        subscribeBroadcast(TerminatedBroadcast.class, terminated -> {  ////
+            System.out.println(getName() + " received terminated broadcast.");
+            terminate();
+        });
         latch.countDown();
-        System.out.println("fusionslamser End initialized ]]]]]]]]]]");
+        System.out.println("cameraser End initialized ]]]]]]]]]]");
     }
 
 /**

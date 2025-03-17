@@ -138,6 +138,8 @@ public abstract class MicroService implements Runnable {
     protected final void terminate() {
         this.terminated = true;
         System.out.println(this.getName() + " is terminating...<<<<<<<<<<<<");
+        // מבצע אינטרפט לכל ת'רד של המיקרו-שירות כדי לשחרר את `awaitMessage()`
+        Thread.currentThread().interrupt();
     }
 
     /**
@@ -155,7 +157,7 @@ public abstract class MicroService implements Runnable {
     @Override
     public final void run() {
         messageBus.register(this);
-        System.out.println(this.name + "registered");
+        System.out.println(this.name + " registered");
 
         initialize();
         while (!terminated) {
@@ -163,17 +165,20 @@ public abstract class MicroService implements Runnable {
             try {
                 Message message = messageBus.awaitMessage(this);
                 System.out.println(this.name + " finished wait");
-                Callback<Message> callback = (Callback<Message>) callbacksMap.get(message.getClass());
 
+                Callback<Message> callback = (Callback<Message>) callbacksMap.get(message.getClass());
                 if (callback != null) {
                     callback.call(message);
                 } else {
                     System.err.println("No callback found for message of type: " + message.getClass());
                 }
             } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
+                System.out.println(this.name + " interrupted, exiting...");
+                Thread.currentThread().interrupt(); // הבטחה שהת'רד יסיים ולא ימשיך לרוץ
+                break;
             }
         }
     }
+
 
 }

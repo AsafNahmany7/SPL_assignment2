@@ -45,7 +45,7 @@ public class GurionRockRunner {
             // Wait for all threads to finish
             for (Thread thread : serviceThreads) {
                 System.out.println(thread.getName() + " get 'join'");
-                thread.join(10000); // המתן עד 10 שניות
+                thread.join();
                 if (thread.isAlive()) {
                     System.err.println(thread.getName() + " is still running after join timeout.");
                 } else {

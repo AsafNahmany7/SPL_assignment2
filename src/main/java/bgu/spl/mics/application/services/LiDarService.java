@@ -119,9 +119,13 @@ public class LiDarService extends MicroService {
 
         //crash callback
         subscribeBroadcast(CrashedBroadcast.class,(CrashedBroadcast broadcast)->{
-            System.out.println("CameraService received crash notification from: " + broadcast.getServiceName());
+            System.out.println("lidarser received crash notification from: " + broadcast.getServiceName());
+        });
+        subscribeBroadcast(TerminatedBroadcast.class, terminated -> {
+            System.out.println(getName() + " received terminated broadcast.");
+            terminate();
         });
         latch.countDown();//לא למחוק
-        System.out.println("fusionslamser End initialized ]]]]]]]]]]");//לא למחוק
+        System.out.println("lidarser End initialized ]]]]]]]]]]");//לא למחוק
     }
 }
