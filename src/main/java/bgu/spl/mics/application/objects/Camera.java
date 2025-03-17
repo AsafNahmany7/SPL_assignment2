@@ -58,10 +58,37 @@ public class Camera {
         try (FileReader reader = new FileReader(filePath)) {
             Type type = new TypeToken<Map<String, List<StampedDetectedObjects>>>() {}.getType();
             Map<String, List<StampedDetectedObjects>> data = gson.fromJson(reader, type);
-            // טוען את המידע למבנה הנתונים של המצלמה
-            String cameraKey = key;
-            if (data.containsKey(cameraKey)) {
-                stampdetectedObjects = data.get(cameraKey);
+
+            // Debugging: Print all available keys to verify
+            System.out.println("Available Keys in JSON: " + data.keySet());
+            System.out.println("Current Camera Key: " + key);
+
+            if (data.containsKey(key)) {
+                stampdetectedObjects = new ArrayList<>(); // Reset the list before adding new objects
+
+                // Loop through each entry in the JSON for this camera
+                for (StampedDetectedObjects jsonEntry : data.get(key)) {
+                    // Step 1: Create a new StampedDetectedObjects instance with the correct time
+                    StampedDetectedObjects a = new StampedDetectedObjects(jsonEntry.getTime());
+
+                    // Step 2: Populate detected objects list manually
+                    for (DetectedObject jsonObject : jsonEntry.getDetectedObjects()) {
+                        DetectedObject detectedObj = new DetectedObject(jsonObject.getId(), jsonObject.getDescription());
+                        a.getDetectedObjects().add(detectedObj); // Add to the list inside "a"
+                    }
+
+                    // Step 3: Add "a" to the camera's list
+                    stampdetectedObjects.add(a);
+                }
+
+                // Debugging: Print loaded data
+                System.out.println("LALALALALALALALALALLALALALALALALAA");
+                for (StampedDetectedObjects obj : stampdetectedObjects) {
+                    System.out.println("Time: " + obj.getTime());
+                    for (DetectedObject amk : obj.getDetectedObjects()) {
+                        System.out.println("Detected Object -> ID: " + amk.getId() + ", Description: " + amk.getDescription());
+                    }
+                }
             } else {
                 System.out.println("No data found for camera: " + key);
             }

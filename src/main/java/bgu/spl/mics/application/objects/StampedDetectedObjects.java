@@ -18,6 +18,9 @@ public class StampedDetectedObjects {
 
     public List<DetectedObject> getDetectedObjects() {
 
+        if (DetectedObjects == null) {
+            DetectedObjects = new ArrayList<>(); // Ensure it's never null
+        }
         return DetectedObjects;
     }
 
