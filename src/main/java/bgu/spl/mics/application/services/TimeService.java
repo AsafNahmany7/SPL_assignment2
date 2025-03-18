@@ -49,8 +49,10 @@ public class TimeService extends MicroService {
         timerThread = new Thread(() -> {
             try {
                 StatisticalFolder statsFolder = StatisticalFolder.getInstance();
+                System.out.println("בדיקה -t.s." + currentTick);
                 while (currentTick < duration) {
                     currentTick++;
+                    System.out.println("עומד לשלוח את טיק:" + currentTick);
                     sendBroadcast(new TickBroadcast(currentTick, duration));
                     System.out.println("**sended tick" + currentTick);
                     statsFolder.incrementSystemRuntime();
@@ -89,5 +91,6 @@ public class TimeService extends MicroService {
         // Start the timer thread
         timerThread.start();
         System.out.println("timerser End initialized ]]]]]]]]]]");
+        System.out.println("בדיקהt.s. - tick:"+ currentTick);
     }
 }
