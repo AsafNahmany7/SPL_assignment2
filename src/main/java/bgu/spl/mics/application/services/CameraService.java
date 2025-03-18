@@ -59,14 +59,17 @@ public class CameraService extends MicroService {
                 StampedDetectedObjects statisticObjects = camera.detectObjectsAtTime(tick.getCurrentTick());
                 System.out.println(tick.getCurrentTick() + "בדיקה - מס' tick:");
                 System.out.println("בדיקה - תנאי מצלמה up");
-                if(statisticObjects != null){ System.out.println("בדיקה - תנאי א");}
-              //  if(statisticObjects.getDetectedObjects() != null){ System.out.println("בדיקה - תנאי ב");}
-              //  if(!statisticObjects.getDetectedObjects().isEmpty()) {System.out.println("בדיקה - תנאי ג");}
-                if (statisticObjects != null && statisticObjects.getDetectedObjects() != null && !statisticObjects.getDetectedObjects().isEmpty()) {
-                    System.out.println("בדיקה - תנאי שני");
-                    StatisticalFolder statFolder = StatisticalFolder.getInstance();
-                    int numbersOfObjects = statisticObjects.getDetectedObjects().size();
-                    statFolder.setNumDetectedObjects(numbersOfObjects);
+                if (statisticObjects != null) {
+                    System.out.println("בדיקה - תנאי א");
+                    if (statisticObjects.getDetectedObjects() != null){System.out.println("בדיקה - תנאי ב");}
+                    System.out.println("" + statisticObjects.getDetectedObjects().size());
+                    if (!statisticObjects.getDetectedObjects().isEmpty()){System.out.println("בדיקה - תנאי ג");}
+                    if (statisticObjects.getDetectedObjects() != null && !statisticObjects.getDetectedObjects().isEmpty()) {
+                         System.out.println("בדיקה - תנאי שני");
+                        StatisticalFolder statFolder = StatisticalFolder.getInstance();
+                        int numbersOfObjects = statisticObjects.getDetectedObjects().size();
+                        statFolder.setNumDetectedObjects(numbersOfObjects);
+                    }
                 }
                 if (camera.getFrequency() < tick.getCurrentTick()) {
                     System.out.println("בדיקה - תנאי שלישי");

@@ -65,20 +65,23 @@ public class Camera {
 
             if (data.containsKey(key)) {
                 stampdetectedObjects = new ArrayList<>(); // Reset the list before adding new objects
-
+                System.out.println("נכנס לתנאי בcamera");
                 // Loop through each entry in the JSON for this camera
                 for (StampedDetectedObjects jsonEntry : data.get(key)) {
                     // Step 1: Create a new StampedDetectedObjects instance with the correct time
                     StampedDetectedObjects a = new StampedDetectedObjects(jsonEntry.getTime());
-
+                    System.out.println("יצר מערך של DetectedObjects");
                     // Step 2: Populate detected objects list manually
                     for (DetectedObject jsonObject : jsonEntry.getDetectedObjects()) {
+                        System.out.println("האם נכנס בכלל ללולאה הזאת ????");
                         DetectedObject detectedObj = new DetectedObject(jsonObject.getId(), jsonObject.getDescription());
                         a.getDetectedObjects().add(detectedObj); // Add to the list inside "a"
+                        System.out.println("הוסיף לרשימה a את הDetectedObject הרלוונטי");
                     }
 
                     // Step 3: Add "a" to the camera's list
                     stampdetectedObjects.add(a);
+                    System.out.println("עדכן את כל הstampedDetectedObject");
                 }
 
                 // Debugging: Print loaded data
