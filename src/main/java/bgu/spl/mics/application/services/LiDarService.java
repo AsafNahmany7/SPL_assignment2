@@ -72,16 +72,18 @@ public class LiDarService extends MicroService {
                 for(DetectedObject currentDetectedObject : toProcess.getDetectedObjects()){
                     String id = currentDetectedObject.getId();
                     StampedCloudPoints correspondingCloudPoints = database.searchStampedClouds(detectionTime,id);
+                    List<CloudPoint> cloudpoints = new ArrayList<>();
 
                     for(List<Double>   coordinates  : correspondingCloudPoints.getCloudPoints()){
-                        List<CloudPoint> cloudpoints = new ArrayList<>();
+
                         cloudpoints.add(new CloudPoint(coordinates.get(0),coordinates.get(1)));
 
 
-                        TrackedObject newTrackedObject = new TrackedObject(id,time,currentDetectedObject.getDescription(),cloudpoints);
-                        trackedObjects.add(newTrackedObject);
-                        System.out.println(" hopa hopa lidar"+tracker.getId()+" sent tracked object "+ newTrackedObject.getDescription()+" at time: "+ time );
+
                     }
+                    TrackedObject newTrackedObject = new TrackedObject(id,time,currentDetectedObject.getDescription(),cloudpoints);
+                    trackedObjects.add(newTrackedObject);
+                    System.out.println(" hopa hopa lidar"+tracker.getId()+" sent tracked object "+ newTrackedObject.getDescription()+" at time: "+ time );
 
                 }
                 TrackedObjectsEvent output = new TrackedObjectsEvent(time,trackedObjects);
@@ -105,6 +107,7 @@ public class LiDarService extends MicroService {
 
         //terminate callback
         subscribeBroadcast(TerminatedBroadcast.class,(TerminatedBroadcast broadcast)->{
+            System.out.println(getName() + " received terminated broadcast.");
             tracker.setStatus(LiDarWorkerTracker.status.DOWN);
             terminate();
         });
@@ -113,10 +116,7 @@ public class LiDarService extends MicroService {
         subscribeBroadcast(CrashedBroadcast.class,(CrashedBroadcast broadcast)->{
             System.out.println("lidarser received crash notification from: " + broadcast.getServiceName());
         });
-        subscribeBroadcast(TerminatedBroadcast.class, terminated -> {
-            System.out.println(getName() + " received terminated broadcast.");
-            terminate();
-        });
+
         latch.countDown();//לא למחוק
         System.out.println("lidarser End initialized ]]]]]]]]]]");//לא למחוק
     }
