@@ -28,16 +28,13 @@ public class LiDarService extends MicroService {
      */
     private LiDarWorkerTracker tracker;
     private List<StampedDetectedObjects> DetectedObjectsbyTime;
-    private HashMap<String, TrackedObject> trackedObjectsMap;
     private final CountDownLatch latch;//לא למחוק
-    int time;
 
 
     public LiDarService(LiDarWorkerTracker tracker, CountDownLatch latch) {
         super("LidarWorker " + tracker.getId());
         this.tracker = tracker;// לא למחוק
         DetectedObjectsbyTime = new ArrayList<>();
-        trackedObjectsMap = new HashMap<>();
         this.latch = latch;//לא למחוק
     }
 
@@ -56,63 +53,61 @@ public class LiDarService extends MicroService {
 
         //tick callback:
         subscribeBroadcast(TickBroadcast.class,(TickBroadcast tick)->{
-            time = tick.getCurrentTick();
+            int time = tick.getCurrentTick();
+            LiDarDataBase database = LiDarDataBase.getInstance();
+            StampedDetectedObjects toProcess = null;
+            int detectionTime = 0;
 
 
-            for(StampedDetectedObjects detectedObject : DetectedObjectsbyTime ){
-                if(detectedObject.getTime() + tracker.getFrequencey() == time){
-
-                    List<TrackedObject> TrackedObjectsToSend = new ArrayList<>();
-
-                    for(DetectedObject currentDetectedObject : detectedObject.getDetectedObjects()  ){
-                        //Send the events to complete....
-                        TrackedObject currentTrackedObject = trackedObjectsMap.get(currentDetectedObject.getId());
-                        TrackedObjectsToSend.add(currentTrackedObject);
-
-                    }
-                    TrackedObjectsEvent EventToSend = new TrackedObjectsEvent(time,TrackedObjectsToSend);
-                    int numberOfTrackedObjects = EventToSend.getTrackedObjects().size();
-                    StatisticalFolder statsFolder = StatisticalFolder.getInstance();
-                    statsFolder.setNumTrackedObjects(numberOfTrackedObjects);
-
-                    sendEvent(EventToSend);
-                    }
+            for(StampedDetectedObjects currentTimeDetectedObjects : DetectedObjectsbyTime ){
+                detectionTime = currentTimeDetectedObjects.getTime();
+                if(detectionTime + tracker.getFrequencey() == time ){
+                    toProcess = currentTimeDetectedObjects;
+                }
             }
 
+            if(toProcess!= null){
+                List<TrackedObject> trackedObjects = new ArrayList<>();
+
+                for(DetectedObject currentDetectedObject : toProcess.getDetectedObjects()){
+                    String id = currentDetectedObject.getId();
+                    StampedCloudPoints correspondingCloudPoints = database.searchStampedClouds(detectionTime,id);
+                    List<CloudPoint> cloudpoints = new ArrayList<>();
+
+                    for(List<Double>   coordinates  : correspondingCloudPoints.getCloudPoints()){
+
+                        cloudpoints.add(new CloudPoint(coordinates.get(0),coordinates.get(1)));
+
+
+
+                    }
+                    TrackedObject newTrackedObject = new TrackedObject(id,time,currentDetectedObject.getDescription(),cloudpoints);
+                    trackedObjects.add(newTrackedObject);
+                    System.out.println(" hopa hopa lidar"+tracker.getId()+" sent tracked object "+ newTrackedObject.getDescription()+" at time: "+ time );
+
+                }
+                TrackedObjectsEvent output = new TrackedObjectsEvent(time,trackedObjects);
+                sendEvent(output);
+
+            }
 
         });
 
         //DetectedObjectEvent callback
 
         subscribeEvent(DetectObjectsEvent.class,(DetectObjectsEvent objEvent)->{
-            StampedDetectedObjects DetectedObjectList = objEvent.getDetectedObjects();
-            LiDarDataBase database = LiDarDataBase.getInstance();
-            List<StampedCloudPoints> CloudpointsOfObjects = database.getStampedCloudsByTime(DetectedObjectList.getTime());
+           StampedDetectedObjects stampedDetectedObjects = objEvent.getDetectedObjects();
 
-            for(DetectedObject current : DetectedObjectList.getDetectedObjects()  ){
-                List<CloudPoint> CloudPointsOfCurrent = new ArrayList<>();
-                boolean isFound = false;
+           for(DetectedObject dodo : stampedDetectedObjects.getDetectedObjects()){
+               System.out.println("popa popa lidar"+tracker.getId()+" recieved "+dodo.getDescription()+" at time : "+ stampedDetectedObjects.getTime());
+           }
 
-                for(StampedCloudPoints currentCloudPointStamped : CloudpointsOfObjects){
-
-                    if(currentCloudPointStamped.getId().equals(current.getId())&& !isFound){
-                        isFound = true;
-                        List<List<Double>> coordinates = currentCloudPointStamped.getCloudPoints();
-
-                        for(List<Double> coordinate : coordinates){
-                            CloudPoint SingularCloudOfCurrent = new CloudPoint(coordinate.get(0),coordinate.get(1));
-                            CloudPointsOfCurrent.add(SingularCloudOfCurrent);
-                        }
-                    }
-
-                }
-                TrackedObject TrackedInstance = new TrackedObject(current.getId(),DetectedObjectList.getTime(), current.getDescription(),CloudPointsOfCurrent );
-                trackedObjectsMap.put(TrackedInstance.getId(), TrackedInstance);
-            }
+            DetectedObjectsbyTime.add(stampedDetectedObjects);
         });
 
         //terminate callback
         subscribeBroadcast(TerminatedBroadcast.class,(TerminatedBroadcast broadcast)->{
+            System.out.println(getName() + " received terminated broadcast.");
             tracker.setStatus(LiDarWorkerTracker.status.DOWN);
             terminate();
         });
@@ -121,10 +116,7 @@ public class LiDarService extends MicroService {
         subscribeBroadcast(CrashedBroadcast.class,(CrashedBroadcast broadcast)->{
             System.out.println("lidarser received crash notification from: " + broadcast.getServiceName());
         });
-        subscribeBroadcast(TerminatedBroadcast.class, terminated -> {
-            System.out.println(getName() + " received terminated broadcast.");
-            terminate();
-        });
+
         latch.countDown();//לא למחוק
         System.out.println("lidarser End initialized ]]]]]]]]]]");//לא למחוק
     }
