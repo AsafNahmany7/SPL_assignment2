@@ -61,6 +61,9 @@ public class GurionRockRunner {
 
             generateOutputFile(fusionSlam, "output.json");
 
+            // Test for output file generation
+            testOutputGeneration();
+
             System.out.println("Simulation completed successfully.");
         } catch (Exception e) {
             System.err.println("An error occurred during the simulation: " + e.getMessage());
@@ -92,6 +95,11 @@ public class GurionRockRunner {
         String cameraDataPath = Paths.get(baseDir, config.getAsJsonObject("Cameras").get("camera_datas_path").getAsString()).toString();
         String lidarDataPath = Paths.get(baseDir, config.getAsJsonObject("LiDarWorkers").get("lidars_data_path").getAsString()).toString();
         String poseDataPath = Paths.get(baseDir, config.get("poseJsonFile").getAsString()).toString();
+
+        // Verify file paths exist
+        System.out.println("Camera data path: " + cameraDataPath + " exists: " + new File(cameraDataPath).exists());
+        System.out.println("LiDAR data path: " + lidarDataPath + " exists: " + new File(lidarDataPath).exists());
+        System.out.println("Pose data path: " + poseDataPath + " exists: " + new File(poseDataPath).exists());
 
         // CountDownLatch עבור כל השירותים מלבד TimeService
         int numServices = config.getAsJsonObject("Cameras").getAsJsonArray("CamerasConfigurations").size()
@@ -157,5 +165,52 @@ public class GurionRockRunner {
             new Gson().toJson(fusionSlam.generateOutput(), writer);
         }
         System.out.println("Output file created: " + outputFilePath);
+    }
+
+    /**
+     * Tests the output file generation with dummy data.
+     */
+    private static void testOutputGeneration() {
+        System.out.println("Testing output file creation with dummy data...");
+        try {
+            // Create a test output with dummy data
+            JsonObject testOutput = new JsonObject();
+            testOutput.addProperty("test", "This is a test output");
+            testOutput.addProperty("timestamp", System.currentTimeMillis());
+
+            // Add a dummy pose array
+            JsonObject posesObject = new JsonObject();
+            posesObject.add("poses", new Gson().toJsonTree(new ArrayList<>()));
+            testOutput.add("poses", posesObject);
+
+            // Add a dummy landmarks object
+            JsonObject landmarksObject = new JsonObject();
+            testOutput.add("landMarks", landmarksObject);
+
+            // Add dummy statistics
+            JsonObject statsObject = new JsonObject();
+            statsObject.addProperty("systemRuntime", 999);
+            statsObject.addProperty("numDetectedObjects", 999);
+            statsObject.addProperty("numTrackedObjects", 999);
+            statsObject.addProperty("numLandmarks", 999);
+            testOutput.add("statistics", statsObject);
+
+            // Write the test output file
+            try (FileWriter writer = new FileWriter("test_output.json")) {
+                new Gson().toJson(testOutput, writer);
+            }
+            System.out.println("Test output file created successfully!");
+
+            // Read the test output file back to verify it was created properly
+            try (FileReader reader = new FileReader("test_output.json")) {
+                JsonObject readObject = new Gson().fromJson(reader, JsonObject.class);
+                System.out.println("Test output file read back successfully: " +
+                        readObject.has("test") + ", " +
+                        readObject.has("timestamp"));
+            }
+        } catch (Exception e) {
+            System.err.println("Error creating test output: " + e.getMessage());
+            e.printStackTrace();
+        }
     }
 }
