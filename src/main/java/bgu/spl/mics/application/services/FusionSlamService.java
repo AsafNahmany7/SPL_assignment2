@@ -1,19 +1,10 @@
 package bgu.spl.mics.application.services;
 
 import bgu.spl.mics.MicroService;
-import bgu.spl.mics.application.messages.CrashedBroadcast;
-import bgu.spl.mics.application.messages.PoseEvent;
-import bgu.spl.mics.application.messages.TerminatedBroadcast;
-import bgu.spl.mics.application.messages.TickBroadcast;
-import bgu.spl.mics.application.messages.TrackedObjectsEvent;
+import bgu.spl.mics.application.messages.*;
 import bgu.spl.mics.application.objects.FusionSlam;
-import bgu.spl.mics.application.objects.LandMark;
 import bgu.spl.mics.application.objects.Pose;
 import bgu.spl.mics.application.objects.TrackedObject;
-
-
-import java.util.List;
-import java.util.stream.Collectors;
 import java.util.concurrent.CountDownLatch;
 
 /**
@@ -22,7 +13,6 @@ import java.util.concurrent.CountDownLatch;
  */
 public class FusionSlamService extends MicroService {
     private final FusionSlam fusionSlam;
-    private Pose currentPose; // Current robot pose
     private final CountDownLatch latch;
 
     /**
@@ -31,42 +21,23 @@ public class FusionSlamService extends MicroService {
     public FusionSlamService(CountDownLatch latch) {
         super("FusionSlamService");
         this.fusionSlam = FusionSlam.getInstance();
-        this.currentPose = null;
         this.latch = latch;
     }
 
-    /**
-     * Initializes the FusionSlamService.
-     * Registers the service to handle TrackedObjectsEvents, PoseEvents, and TickBroadcasts,
-     * and sets up callbacks for updating the global map.
-     */
     @Override
     protected void initialize() {
         System.out.println("fusionslamser initialize");
-        // Subscribe to TickBroadcast
-        subscribeBroadcast(TickBroadcast.class, tick -> {
-            // לחשוב אם צריך להכניס כאן פעולות
-        });
 
-        // Subscribe to TrackedObjectsEvent
+        // קבלת TrackedObjectEvent -> שמירת האובייקטים ברשימת המתנה או עיבוד ישיר
         subscribeEvent(TrackedObjectsEvent.class, trackedEvent -> {
-            if (currentPose != null) {
-                List<LandMark> trackedLandmarks = trackedEvent.getTrackedObjects()
-                        .stream()
-                        .map(TrackedObject::toLandMark)
-                        .collect(Collectors.toList());
-                //למנוע מקרה קיצון שמקבל את הtracked ולא את הpose, ויקבל את הpose הרלוונטי רק בסיבוב הבא
-                  /////יכול להיות שצריך לעשות synchronized פה ??
-                    fusionSlam.processTrackedObjects(trackedLandmarks, currentPose);
-
+            for (TrackedObject trackedObject : trackedEvent.getTrackedObjects()) {
+                fusionSlam.addTrackedObject(trackedObject);
             }
         });
 
-
-
-        // Subscribe to PoseEvent
+        // קבלת PoseEvent -> הוספת הפוזיציה לרשימה וטיפול ב-TrackedObjects שממתינים
         subscribeEvent(PoseEvent.class, poseEvent -> {
-            this.currentPose = poseEvent.getPose();
+            fusionSlam.processPose(poseEvent.getPose());
         });
 
         // Subscribe to TerminatedBroadcast
@@ -80,10 +51,7 @@ public class FusionSlamService extends MicroService {
         subscribeBroadcast(CrashedBroadcast.class, crashed -> {
             System.out.println("FusionSlamService received crash notification from: " + crashed.getServiceName());
         });
-        subscribeBroadcast(TerminatedBroadcast.class, terminated -> {
-            System.out.println(getName() + " received terminated broadcast.");
-            terminate();
-        });
+
         latch.countDown();
         System.out.println("fusionslamser End initialized ]]]]]]]]]]");
     }

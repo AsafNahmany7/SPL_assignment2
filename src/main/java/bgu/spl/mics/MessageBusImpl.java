@@ -1,5 +1,7 @@
 package bgu.spl.mics;
 
+import bgu.spl.mics.application.messages.TickBroadcast;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -71,6 +73,10 @@ public class MessageBusImpl implements MessageBus {
 
 		BlockingQueue<MicroService> microServicesQueue = BrodcastSubscribersQueues.get(b.getClass());
 
+		if(b.getClass() == TickBroadcast.class){
+			System.out.println("עוד רגע שולח את טיק מס': " + ((TickBroadcast) b).getCurrentTick());
+		}
+
 		for (MicroService m : microServicesQueue) {
 			try {
 				BlockingQueue<Message> messageQueue = ServicesMessageQueues.get(m);
@@ -81,6 +87,10 @@ public class MessageBusImpl implements MessageBus {
 			catch (InterruptedException ex) {
 				Thread.currentThread().interrupt();
 			}
+		}
+
+		if(b.getClass() == TickBroadcast.class){
+			System.out.println("כאן כבר נשלח טיק מס': " + ((TickBroadcast) b).getCurrentTick());
 		}
 
 	}

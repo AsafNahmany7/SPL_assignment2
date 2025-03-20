@@ -90,11 +90,14 @@ public class LiDarService extends MicroService {
                         System.out.println("מכניס לcloudpoints את הקורדינטות: " + coordinates.get(0) + " , " + coordinates.get(1));
                     }
                     System.out.println("-----ניצור TrackedObject-----");
-                    TrackedObject newTrackedObject = new TrackedObject(id,time,currentDetectedObject.getDescription(),cloudpoints);
+                    TrackedObject newTrackedObject = new TrackedObject(id,toProcess.getTime(),currentDetectedObject.getDescription(),cloudpoints);
                     trackedObjects.add(newTrackedObject);
                     System.out.println(" hopa hopa lidar"+tracker.getId()+" add tracked object "+ newTrackedObject.getId()+" at beginning process time: "+ time +" at current tick time: "+ tick.getCurrentTick());
 
                 }
+                System.out.println("הכמות של הtrackedobject היא: " + trackedObjects.size() + "כאשר מדובר בtime: " + trackedObjects.get(0).getTime());
+                StatisticalFolder.getInstance().setNumTrackedObjects(trackedObjects.size());
+                DetectedObjectsbyTime.remove(toProcess);
                 TrackedObjectsEvent output = new TrackedObjectsEvent(trackedObjects);
                 sendEvent(output);
 

@@ -1,10 +1,15 @@
 package bgu.spl.mics.application.objects;
 
-import com.google.gson.JsonObject;
 import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
+import com.google.gson.Gson;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
 /**
@@ -13,10 +18,15 @@ import java.util.stream.Collectors;
  * Implements the Singleton pattern to ensure a single instance of FusionSlam exists.
  */
 public class FusionSlam {
-    // Singleton instance holder
-    private List<LandMark> landmarks;
-    private List<Pose> poses;
-    private JsonObject outputData;
+    private final List<LandMark> landmarks;
+    private final List<Pose> poses;
+    private final List<TrackedObject> trackedObjectsQueue;
+    private final JsonObject outputData;
+
+    private final Lock posesLock;
+    private final Lock landmarksLock;
+    private final Lock trackedObjectsLock;
+    private final Lock outputLock;
 
     private static class FusionSlamHolder {
         private static final FusionSlam INSTANCE = new FusionSlam();
@@ -25,46 +35,104 @@ public class FusionSlam {
     private FusionSlam() {
         this.landmarks = new ArrayList<>();
         this.poses = new ArrayList<>();
+        this.trackedObjectsQueue = new ArrayList<>();
         this.outputData = new JsonObject();
+
+        this.posesLock = new ReentrantLock();
+        this.landmarksLock = new ReentrantLock();
+        this.trackedObjectsLock = new ReentrantLock();
+        this.outputLock = new ReentrantLock();
     }
 
     public static FusionSlam getInstance() {
         return FusionSlamHolder.INSTANCE;
     }
 
-    private List<LandMark> getLandmarks() {
-        return landmarks;
-    }
-    private List<Pose> getPoses() {
-        return poses;
-    }
-    private void addPose(Pose pose) {
-        this.poses.add(pose);
-    }
-    private void addLandmark(LandMark landmark) {
-        this.landmarks.add(landmark);
+    public void addTrackedObject(TrackedObject trackedObject) {
+        posesLock.lock();
+        try {
+            for (Pose pose : poses) {
+                if (pose.getTime() == trackedObject.getTime()) {
+                    processTrackedObjects(trackedObject.toLandMark(), pose);
+                    return;
+                }
+            }
+        } finally {
+            posesLock.unlock();
+        }
+
+        trackedObjectsLock.lock();
+        try {
+            trackedObjectsQueue.add(trackedObject);
+        } finally {
+            trackedObjectsLock.unlock();
+        }
     }
 
-    public synchronized void processTrackedObjects(List<LandMark> trackedLandmarks, Pose pose) {
-        for (LandMark landmark : trackedLandmarks) {
-            // המרת הקואורדינטות למערכת הגלובלית
-            List<CloudPoint> globalCoordinates = landmark.getCoordinates().stream()
+    public void processPose(Pose newPose) {
+        posesLock.lock();
+        try {
+            poses.add(newPose);
+        } finally {
+            posesLock.unlock();
+        }
+
+        trackedObjectsLock.lock();
+        try {
+            List<TrackedObject> matchedObjects = trackedObjectsQueue.stream()
+                    .filter(tracked -> tracked.getTime() == newPose.getTime())
+                    .collect(Collectors.toList());
+
+            for (TrackedObject tracked : matchedObjects) {
+                processTrackedObjects(tracked.toLandMark(), newPose);
+                trackedObjectsQueue.remove(tracked);
+            }
+        } finally {
+            trackedObjectsLock.unlock();
+        }
+    }
+
+    // הוספת משתנה Set לשמירה על ה-ID-ים של ה-LandMarks
+    private final Set<String> existingLandmarkIds = new HashSet<>();
+
+    public void processTrackedObjects(LandMark trackedLandmark, Pose pose) {
+        landmarksLock.lock();
+        try {
+            List<CloudPoint> globalCoordinates = trackedLandmark.getCoordinates().stream()
                     .map(localPoint -> transformToGlobal(pose, localPoint))
                     .collect(Collectors.toList());
 
-            if (!landmarks.contains(landmark)) {
-                landmark.setCoordinates(globalCoordinates); // Landmark חדש
-                addLandmark(landmark);
-                StatisticalFolder statFolder = StatisticalFolder.getInstance();
-                statFolder.incrementNumLandmarks();
+            if (!existingLandmarkIds.contains(trackedLandmark.getId())) {
+                System.out.println("הlandmark: " + trackedLandmark.getId() + " *לא* קיים, לכן נוסיף אותו");
+                trackedLandmark.setCoordinates(globalCoordinates);
+                addLandmark(trackedLandmark);
+                existingLandmarkIds.add(trackedLandmark.getId()); // הוספת ה-ID למעקב
+                System.out.println("גודל רשימת הlandmarks: " + landmarks.size());
+                StatisticalFolder.getInstance().incrementNumLandmarks();
             } else {
-                // Landmark קיים - עדכון ממוצע
-                LandMark existingLandmark = landmarks.get(landmarks.indexOf(landmark));
-                List<CloudPoint> updatedCoordinates = calculateAverage(existingLandmark.getCoordinates(), globalCoordinates);
-                existingLandmark.setCoordinates(updatedCoordinates);
+                System.out.println("הlandmark: " + trackedLandmark.getId() + " כן קיים, לכן לא נוסיף אותו");
+                // איתור ה-Landmark הקיים ושדרוג הקורדינטות שלו
+                for (LandMark existingLandmark : landmarks) {
+                    if (existingLandmark.getId().equals(trackedLandmark.getId())) {
+                        List<CloudPoint> updatedCoordinates = calculateAverage(existingLandmark.getCoordinates(), globalCoordinates);
+                        existingLandmark.setCoordinates(updatedCoordinates);
+                        break; // ברגע שמצאנו את ה-LandMark עם ה-ID המתאים, אין צורך להמשיך לחפש
+                    }
+                }
             }
+        } finally {
+            landmarksLock.unlock();
         }
-        addPose(pose); // עדכון המיקום הנוכחי של הרובוט
+    }
+
+
+    private void addLandmark(LandMark landmark) {
+        landmarksLock.lock();
+        try {
+            this.landmarks.add(landmark);
+        } finally {
+            landmarksLock.unlock();
+        }
     }
 
     public CloudPoint transformToGlobal(Pose pose, CloudPoint localPoint) {
@@ -87,63 +155,94 @@ public class FusionSlam {
             averagedCoordinates.add(new CloudPoint(avgX, avgY));
         }
 
-        if (existing.size() >= incoming.size()) {
-            for (int j = sizeMin; j < existing.size(); j++) {
-                averagedCoordinates.add(new CloudPoint(existing.get(j).getX(), existing.get(j).getY()));
-            }
+        if (existing.size() > incoming.size()) {
+            averagedCoordinates.addAll(existing.subList(sizeMin, existing.size()));
         } else {
-            for (int j = sizeMin; j < incoming.size(); j++) {
-                averagedCoordinates.add(new CloudPoint(incoming.get(j).getX(), incoming.get(j).getY()));
-            }
+            averagedCoordinates.addAll(incoming.subList(sizeMin, incoming.size()));
         }
 
         return averagedCoordinates;
     }
 
-    // עדכון קובץ הפלט
-    public synchronized void updateOutput(String key, JsonObject value) {
-        outputData.add(key, value);
+    public void updatePosesOutput(int upToTick) {
+        List<Pose> relevantPoses;
+
+        posesLock.lock();
+        try {
+            relevantPoses = poses.stream()
+                    .filter(p -> p.getTime() <= upToTick)
+                    .collect(Collectors.toList());
+        } finally {
+            posesLock.unlock();
+        }
+
+        JsonArray posesJsonArray = new Gson().toJsonTree(relevantPoses).getAsJsonArray();
+        JsonObject posesJsonObject = new JsonObject();
+        posesJsonObject.add("poses", posesJsonArray);
+
+        updateOutput("poses", posesJsonObject);
     }
 
-    // הפקת נתוני פלט
-    public synchronized JsonObject generateOutput() {
+    public void updateOutput(String key, JsonObject value) {
+        outputLock.lock();
+        try {
+            outputData.add(key, value);
+        } finally {
+            outputLock.unlock();
+        }
+    }
+
+    public JsonObject generateOutput() {
         JsonObject output = new JsonObject();
         output.add("poses", generatePoseArray());
-        output.add("landMarks", generateLandmarkData());
         output.add("statistics", generateStatistics());
+        output.add("landMarks", generateLandmarkData());
         return output;
     }
 
     private JsonArray generatePoseArray() {
         JsonArray poseArray = new JsonArray();
-        for (Pose pose : poses) {
-            JsonObject poseJson = new JsonObject();
-            poseJson.addProperty("time", pose.getTime());
-            poseJson.addProperty("x", pose.getX());
-            poseJson.addProperty("y", pose.getY());
-            poseJson.addProperty("yaw", pose.getYaw());
-            poseArray.add(poseJson);
+        posesLock.lock();
+        try {
+            for (Pose pose : poses) {
+                JsonObject poseJson = new JsonObject();
+                poseJson.addProperty("time", pose.getTime());
+                poseJson.addProperty("x", pose.getX());
+                poseJson.addProperty("y", pose.getY());
+                poseJson.addProperty("yaw", pose.getYaw());
+                poseArray.add(poseJson);
+            }
+        } finally {
+            posesLock.unlock();
         }
         return poseArray;
     }
 
     private JsonObject generateLandmarkData() {
         JsonObject landmarkData = new JsonObject();
-        for (LandMark landmark : landmarks) {
-            JsonObject landmarkJson = new JsonObject();
-            landmarkJson.addProperty("id", landmark.getId());
-            landmarkJson.addProperty("description", landmark.getDescription());
+        landmarksLock.lock();
+        try {
+            System.out.println("גודל מערך הlandmarks בהתחלה הוא: " + landmarks.size());
+            for (LandMark landmark : landmarks) {
+                System.out.println("עכשיו מתעסק עם landmark: " + landmark.getId());
+                JsonObject landmarkJson = new JsonObject();
+                landmarkJson.addProperty("id", landmark.getId());
+                landmarkJson.addProperty("description", landmark.getDescription());
 
-            JsonArray coordinatesArray = new JsonArray();
-            for (CloudPoint point : landmark.getCoordinates()) {
-                JsonObject pointJson = new JsonObject();
-                pointJson.addProperty("x", point.getX());
-                pointJson.addProperty("y", point.getY());
-                coordinatesArray.add(pointJson);
+                JsonArray coordinatesArray = new JsonArray();
+                for (CloudPoint point : landmark.getCoordinates()) {
+                    JsonObject pointJson = new JsonObject();
+                    pointJson.addProperty("x", point.getX());
+                    pointJson.addProperty("y", point.getY());
+                    coordinatesArray.add(pointJson);
+                }
+                landmarkJson.add("coordinates", coordinatesArray);
+                landmarkData.add(landmark.getId(), landmarkJson);
             }
-            landmarkJson.add("coordinates", coordinatesArray);
-            landmarkData.add(landmark.getId(), landmarkJson);
+        } finally {
+            landmarksLock.unlock();
         }
+        System.out.println("גודל הlandmarks לjson הוא: " + landmarkData.size());
         return landmarkData;
     }
 

@@ -52,9 +52,7 @@ public class TimeService extends MicroService {
                 System.out.println("בדיקה -t.s." + currentTick);
                 while (currentTick < duration) {
                     currentTick++;
-                    System.out.println("עומד לשלוח את טיק:" + currentTick);
                     sendBroadcast(new TickBroadcast(currentTick, duration));
-                    System.out.println("**sended tick" + currentTick);
                     statsFolder.incrementSystemRuntime();
                     Thread.sleep(tickTime);
                 }

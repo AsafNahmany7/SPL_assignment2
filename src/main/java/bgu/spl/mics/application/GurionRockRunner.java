@@ -3,6 +3,7 @@ package bgu.spl.mics.application;
 import bgu.spl.mics.application.objects.*;
 import bgu.spl.mics.application.services.*;
 import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
 
 import java.io.File;
@@ -163,10 +164,13 @@ public class GurionRockRunner {
      */
     private static void generateOutputFile(FusionSlam fusionSlam, String outputFilePath) throws Exception {
         try (FileWriter writer = new FileWriter(outputFilePath)) {
-            new Gson().toJson(fusionSlam.generateOutput(), writer);
+            Gson gson = new GsonBuilder().setPrettyPrinting().create(); // יצירת Gson עם הדפסה מסודרת
+            String formattedJson = gson.toJson(fusionSlam.generateOutput());
+            writer.write(formattedJson);
         }
         System.out.println("Output file created: " + outputFilePath);
     }
+
 
     /**
      * Tests the output file generation with dummy data.

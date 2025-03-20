@@ -86,24 +86,12 @@ public class PoseService extends MicroService {
 /**
  * Updates the FusionSlam output with all poses up to the current tick.
  */
-        private void updateOutputWithPoses() {
-            FusionSlam fusionSlam = FusionSlam.getInstance();
 
-            // איסוף ה-poses עד הטיק הנוכחי
-            List<Pose> poseArray = gpsimu.getPoseList().stream()
-                    .filter(p -> p.getTime() <= currentTick)
-                    .collect(Collectors.toList());
+    private void updateOutputWithPoses() {
+        FusionSlam fusionSlam = FusionSlam.getInstance();
 
-// יצירת JsonArray מהמיקומים
-            JsonArray posesJsonArray = new Gson().toJsonTree(poseArray).getAsJsonArray();
-
-// יצירת JsonObject שמכיל את המידע
-            JsonObject posesJsonObject = new JsonObject();
-            posesJsonObject.add("poses", posesJsonArray);
-
-// עדכון הנתונים ב-FusionSlam
-            fusionSlam.updateOutput("poses", posesJsonObject);
-
-        }
+        // עדכון הרשימה של ה-poses בפלט
+        fusionSlam.updatePosesOutput(currentTick);
+    }
 }
 
