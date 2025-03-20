@@ -17,7 +17,7 @@ public class MessageBusImpl implements MessageBus {
 
 	private static MessageBusImpl MessageBus = new MessageBusImpl();
 	private ConcurrentHashMap<MicroService, BlockingQueue<Message>> ServicesMessageQueues = new ConcurrentHashMap<>();
-	private ConcurrentHashMap<Class<?extends Message>,BlockingQueue<MicroService>> BrodcastSubscribersQueues = new ConcurrentHashMap<>();
+	private ConcurrentHashMap<Class<? extends Message>,BlockingQueue<MicroService>> BrodcastSubscribersQueues = new ConcurrentHashMap<>();
 	private ConcurrentHashMap<Class<? extends Message>,BlockingQueue<MicroService>> EventsSubscribersQueues = new ConcurrentHashMap<>();
 	private ConcurrentHashMap<Event<?>,Future<?>> EventsFutures = new ConcurrentHashMap<>();
 
@@ -88,6 +88,7 @@ public class MessageBusImpl implements MessageBus {
 	
 	@Override
 	public <T> Future<T> sendEvent(Event<T> e) {
+		System.out.println( e.getClass() + "האם sendevent הגיע למסג'-באס ?");
 		if(!EventsSubscribersQueues.containsKey(e.getClass())) {
 			System.out.println(e.getClass() + "No Such Event is listed please list it with a subscribing microservice first!");
 			return null;
@@ -99,15 +100,20 @@ public class MessageBusImpl implements MessageBus {
 		}
 
 		MicroService m = EventsSubscribersQueues.get(e.getClass()).poll();
+		System.out.println( "לתפעול ה event" + e.getClass() + "נבחר המיקרוסרוויס: " + m.getName());
 		try {
 			ServicesMessageQueues.get(m).put(e);
+			System.out.println( "לתור ההודעות של " + m.getName() + "הוכנס הevent: " + e.getClass());
 		} catch (InterruptedException ex) {
+			System.out.println( "הפריעו לsendevent");
 			Thread.currentThread().interrupt();
 		}
 
 		try {
 			EventsSubscribersQueues.get(e.getClass()).put(m);
+			System.out.println("לתור הevent: " + e.getClass() + "הוכנס חזרה המיקרוסרוויס: " + m.getName());
 		} catch (InterruptedException ex) {
+			System.out.println( "הפריעו לsendevent");
 			Thread.currentThread().interrupt();
 		}
 

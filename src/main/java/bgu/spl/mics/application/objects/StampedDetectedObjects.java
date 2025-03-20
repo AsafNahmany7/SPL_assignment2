@@ -2,6 +2,7 @@ package bgu.spl.mics.application.objects;
 
 import java.util.ArrayList;
 import java.util.List;
+import com.google.gson.annotations.SerializedName;
 
 /**
  * Represents objects detected by the camera at a specific timestamp.
@@ -9,6 +10,7 @@ import java.util.List;
  */
 public class StampedDetectedObjects {
     private final int time;
+    @SerializedName("detectedObjects") // בשביל הgson
     private List<DetectedObject> DetectedObjects;
 
     public StampedDetectedObjects(int time) {

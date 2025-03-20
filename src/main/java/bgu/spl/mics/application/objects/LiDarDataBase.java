@@ -33,6 +33,7 @@ public class LiDarDataBase {
                 }
             }
         }
+        System.out.println("הsearchStampedClouds מצא בזמן: " + time + "וid: " + id + "את ה: " + output.getCloudPoints().toString());
         return output;
     }
 

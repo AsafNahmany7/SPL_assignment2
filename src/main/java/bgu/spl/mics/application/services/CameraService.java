@@ -56,40 +56,37 @@ public class CameraService extends MicroService {
         // הרשמה לטיק
         subscribeBroadcast(TickBroadcast.class, tick -> {
             if (camera.getStatus() == Camera.status.UP) {
-                StampedDetectedObjects statisticObjects = camera.detectObjectsAtTime(tick.getCurrentTick());
-                System.out.println(tick.getCurrentTick() + "בדיקה - מס' tick:");
                 System.out.println("בדיקה - תנאי מצלמה up");
+                StampedDetectedObjects statisticObjects = camera.detectObjectsAtTime(tick.getCurrentTick());
+                System.out.println(tick.getCurrentTick() + "בדיקה במצלמה-סר - מס' tick:");
                 if (statisticObjects != null) {
-                    System.out.println("בדיקה - תנאי א");
-                    if (statisticObjects.getDetectedObjects() != null){System.out.println("בדיקה - תנאי ב");}
-                    System.out.println("" + statisticObjects.getDetectedObjects().size());
-                    if (!statisticObjects.getDetectedObjects().isEmpty()){System.out.println("בדיקה - תנאי ג");}
+                    System.out.println("בזמן טיק"+tick.getCurrentTick()+"stampedobject לא null");
                     if (statisticObjects.getDetectedObjects() != null && !statisticObjects.getDetectedObjects().isEmpty()) {
-                         System.out.println("בדיקה - תנאי שני");
+                         System.out.println("בדיקה במצלמה-סר - detectobject לא null");
                         StatisticalFolder statFolder = StatisticalFolder.getInstance();
                         int numbersOfObjects = statisticObjects.getDetectedObjects().size();
                         statFolder.setNumDetectedObjects(numbersOfObjects);
                     }
                 }
                 if (camera.getFrequency() < tick.getCurrentTick()) {
-                    System.out.println("בדיקה - תנאי שלישי");
+                    System.out.println("בדיקה במצלמה-סר - תדירות קטן מהטיק");
                     StampedDetectedObjects stampdetectedObjects = camera.detectObjectsAtTime(tick.getCurrentTick() - camera.getFrequency());
-              //      if(stampdetectedObjects != null) {System.out.println("בדיקה - תנאי ד");}
-                //    if(stampdetectedObjects.getDetectedObjects() != null) {System.out.println("בדיקה - תנאי ה");}
-                 //   if(!stampdetectedObjects.getDetectedObjects().isEmpty()) {System.out.println("בדיקה - תנאי ו");}
-                    if (stampdetectedObjects != null && stampdetectedObjects.getDetectedObjects() != null && !stampdetectedObjects.getDetectedObjects().isEmpty()) {
-                        System.out.println("בדיקה - תנאי רביעי");
-                        boolean errorDetected = stampdetectedObjects.getDetectedObjects()
-                                .stream()
-                                .anyMatch(obj -> "ERROR".equals(obj.getId()));
+                    if(stampdetectedObjects != null) {
+                    //    if(stampdetectedObjects.getDetectedObjects() != null) {System.out.println("בדיקה - תנאי ה");}
+                    //   if(!stampdetectedObjects.getDetectedObjects().isEmpty()) {System.out.println("בדיקה - תנאי ו");}
+                        if (stampdetectedObjects.getDetectedObjects() != null && !stampdetectedObjects.getDetectedObjects().isEmpty()) {
+                             System.out.println("בדיקה - שיש אובייקט בתנאי התדירות מול טיק");
+                              boolean errorDetected = stampdetectedObjects.getDetectedObjects()
+                                      .stream()
+                                      .anyMatch(obj -> "ERROR".equals(obj.getId()));
 
-                        if (errorDetected) {
-                            System.out.println("בדיקה - האם יש error");
-                            handleSensorError(stampdetectedObjects); // Handle the error
-                        } else {
-                            System.out.println("בדיקה - נכנס לתנאי של event");
-                        sendEvent(new DetectObjectsEvent(stampdetectedObjects, camera.getFrequency()));
-                            System.out.println("בדיקה - האם נשלח event");
+                              if (errorDetected) {
+                                 System.out.println("בדיקה - האם יש error");
+                                  handleSensorError(stampdetectedObjects); // Handle the error
+                              } else {
+                                  System.out.println(tick.getCurrentTick() + "מצלמה-סר שולח event של טיק: ");
+                                  sendEvent(new DetectObjectsEvent(stampdetectedObjects, camera.getFrequency()));
+                              }
                         }
                     }
                 }

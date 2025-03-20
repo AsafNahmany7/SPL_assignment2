@@ -56,9 +56,9 @@ public class FusionSlamService extends MicroService {
                         .map(TrackedObject::toLandMark)
                         .collect(Collectors.toList());
                 //למנוע מקרה קיצון שמקבל את הtracked ולא את הpose, ויקבל את הpose הרלוונטי רק בסיבוב הבא
-                if(currentPose.getTime() == trackedEvent.getTime()) {  /////יכול להיות שצריך לעשות synchronized פה ??
+                  /////יכול להיות שצריך לעשות synchronized פה ??
                     fusionSlam.processTrackedObjects(trackedLandmarks, currentPose);
-                }
+
             }
         });
 

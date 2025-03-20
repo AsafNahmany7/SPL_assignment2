@@ -53,40 +53,49 @@ public class LiDarService extends MicroService {
 
         //tick callback:
         subscribeBroadcast(TickBroadcast.class,(TickBroadcast tick)->{
+            System.out.println("התקבל בlidarServ טיק מס': " + tick.getCurrentTick());
             int time = tick.getCurrentTick();
             LiDarDataBase database = LiDarDataBase.getInstance();
             StampedDetectedObjects toProcess = null;
             int detectionTime = 0;
 
-
+            System.out.println("יש כרגע בDetectedObjectsbyTime כמות StampedDetectedObjects של: " + DetectedObjectsbyTime.size());
             for(StampedDetectedObjects currentTimeDetectedObjects : DetectedObjectsbyTime ){
                 detectionTime = currentTimeDetectedObjects.getTime();
-                if(detectionTime + tracker.getFrequencey() == time ){
+                System.out.println("הdetectionTime הוא: " + detectionTime);
+                System.out.println("הtracker.getFrequencey() הוא: " + tracker.getFrequencey());
+                System.out.println("ביחד הם: " + (detectionTime + tracker.getFrequencey()));
+                System.out.println("כאשר הtime הוא: " + time);
+                if(detectionTime + tracker.getFrequencey() <= time ){
+                    System.out.println("לכן הצליחו להיכנס לתנאי");
                     toProcess = currentTimeDetectedObjects;
+                }else{
+                    System.out.println("לכן *לא* הצליחו להיכנס לתנאי");
                 }
             }
 
             if(toProcess!= null){
+                System.out.println(" הtoProcess שונה מnull ולכן נכנס לתנאי");
                 List<TrackedObject> trackedObjects = new ArrayList<>();
 
-                for(DetectedObject currentDetectedObject : toProcess.getDetectedObjects()){
+                for(DetectedObject currentDetectedObject : toProcess.getDetectedObjects()){ //עם הזמן המתאים StampedDetectedObjectsה toProcess.getDetectedObjects קיבל את ה
                     String id = currentDetectedObject.getId();
+                    System.out.println(" הid של הcurrentDetectedObject הוא: " + id);
                     StampedCloudPoints correspondingCloudPoints = database.searchStampedClouds(detectionTime,id);
+
                     List<CloudPoint> cloudpoints = new ArrayList<>();
 
                     for(List<Double>   coordinates  : correspondingCloudPoints.getCloudPoints()){
-
                         cloudpoints.add(new CloudPoint(coordinates.get(0),coordinates.get(1)));
-
-
-
+                        System.out.println("מכניס לcloudpoints את הקורדינטות: " + coordinates.get(0) + " , " + coordinates.get(1));
                     }
+                    System.out.println("-----ניצור TrackedObject-----");
                     TrackedObject newTrackedObject = new TrackedObject(id,time,currentDetectedObject.getDescription(),cloudpoints);
                     trackedObjects.add(newTrackedObject);
-                    System.out.println(" hopa hopa lidar"+tracker.getId()+" sent tracked object "+ newTrackedObject.getDescription()+" at time: "+ time );
+                    System.out.println(" hopa hopa lidar"+tracker.getId()+" add tracked object "+ newTrackedObject.getId()+" at beginning process time: "+ time +" at current tick time: "+ tick.getCurrentTick());
 
                 }
-                TrackedObjectsEvent output = new TrackedObjectsEvent(time,trackedObjects);
+                TrackedObjectsEvent output = new TrackedObjectsEvent(trackedObjects);
                 sendEvent(output);
 
             }
@@ -96,10 +105,11 @@ public class LiDarService extends MicroService {
         //DetectedObjectEvent callback
 
         subscribeEvent(DetectObjectsEvent.class,(DetectObjectsEvent objEvent)->{
+            System.out.println(this.getName() + " קיבל DetectedObject ");
            StampedDetectedObjects stampedDetectedObjects = objEvent.getDetectedObjects();
 
            for(DetectedObject dodo : stampedDetectedObjects.getDetectedObjects()){
-               System.out.println("popa popa lidar"+tracker.getId()+" recieved "+dodo.getDescription()+" at time : "+ stampedDetectedObjects.getTime());
+               System.out.println("popa popa lidar"+tracker.getId()+" recieved "+dodo.getId()+" at time : "+ stampedDetectedObjects.getTime());
            }
 
             DetectedObjectsbyTime.add(stampedDetectedObjects);

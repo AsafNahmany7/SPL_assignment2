@@ -65,6 +65,7 @@ public class GurionRockRunner {
             testOutputGeneration();
 
             System.out.println("Simulation completed successfully.");
+            System.out.println("לזכור לשנות בconfig ל30");///חשוב לסוף !!
         } catch (Exception e) {
             System.err.println("An error occurred during the simulation: " + e.getMessage());
             e.printStackTrace();

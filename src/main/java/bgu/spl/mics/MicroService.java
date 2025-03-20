@@ -99,6 +99,7 @@ public abstract class MicroService implements Runnable {
      * 	       			null in case no micro-service has subscribed to {@code e.getClass()}.
      */
     protected final <T> Future<T> sendEvent(Event<T> e) {
+        System.out.println( e.toString() + "האם sendevent הגיע למיקרוסרוויס ?");
         return messageBus.sendEvent(e);
     }
 
