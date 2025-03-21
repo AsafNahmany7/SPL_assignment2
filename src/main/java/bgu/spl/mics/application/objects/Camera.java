@@ -51,6 +51,9 @@ public class Camera {
     public void setStatus(status newStatus) {
         this.status = newStatus;
     }
+    public boolean isEmpty() {
+        return stampdetectedObjects.isEmpty();
+    }
 
 
     public void loadDetectedObjectsFromJson(String filePath) {
@@ -108,6 +111,10 @@ public class Camera {
                 .filter(stampdetectedObject -> stampdetectedObject.getTime() == currentTime)
                 .findFirst()
                 .orElse(null);
+    }
+
+    public void removeStampedObject (StampedDetectedObjects objectToRemove){
+        stampdetectedObjects.remove(objectToRemove);
     }
 
 

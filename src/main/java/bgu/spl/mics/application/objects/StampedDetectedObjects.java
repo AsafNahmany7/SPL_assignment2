@@ -31,7 +31,7 @@ public class StampedDetectedObjects {
         return time;
     }
 
-    public void addDetectedObject(DetectedObject DetectedObject) {
+    public void addDetectedObject(DetectedObject DetectedObject) { //אם משתמש בזה מתישהו אז לשים synchronized
         if(DetectedObjects == null)
             return;
         if(!DetectedObjects.contains(DetectedObject))

@@ -5,6 +5,9 @@ import bgu.spl.mics.application.messages.*;
 import bgu.spl.mics.application.objects.FusionSlam;
 import bgu.spl.mics.application.objects.Pose;
 import bgu.spl.mics.application.objects.TrackedObject;
+
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 
 /**
@@ -30,7 +33,8 @@ public class FusionSlamService extends MicroService {
 
         // קבלת TrackedObjectEvent -> שמירת האובייקטים ברשימת המתנה או עיבוד ישיר
         subscribeEvent(TrackedObjectsEvent.class, trackedEvent -> {
-            for (TrackedObject trackedObject : trackedEvent.getTrackedObjects()) {
+            List<TrackedObject> trackedObjectsCopy = new ArrayList<>(trackedEvent.getTrackedObjects());//change1
+            for (TrackedObject trackedObject : trackedObjectsCopy) {
                 fusionSlam.addTrackedObject(trackedObject);
             }
         });

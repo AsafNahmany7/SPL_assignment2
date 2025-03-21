@@ -137,8 +137,10 @@ public abstract class MicroService implements Runnable {
      * message.
      */
     protected final void terminate() {
+        System.out.println("האם " + this.getName() + "נכנס לterminate ???");
         this.terminated = true;
-        System.out.println(this.getName() + " is terminating...<<<<<<<<<<<<");
+        System.out.println(this.getName() + " terminate הופך לtrue, כלומר צריך להפסיק להיכנס ללואה בrun");
+        messageBus.unregister(this);
         // מבצע אינטרפט לכל ת'רד של המיקרו-שירות כדי לשחרר את `awaitMessage()`
         Thread.currentThread().interrupt();
     }
@@ -165,7 +167,8 @@ public abstract class MicroService implements Runnable {
             System.out.println(this.name + " not terminated & wait");
             try {
                 Message message = messageBus.awaitMessage(this);
-                System.out.println(this.name + " finished wait");
+                System.out.println( "❌ המיקרוסרוויס: " + this.getName() + "לוקח מהתור הראשי את המשימה: " + message.toString());
+
 
                 Callback<Message> callback = (Callback<Message>) callbacksMap.get(message.getClass());
                 if (callback != null) {

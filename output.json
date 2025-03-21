@@ -122,7 +122,7 @@
     }
   ],
   "statistics": {
-    "systemRuntime": 21,
+    "systemRuntime": 22,
     "numDetectedObjects": 13,
     "numTrackedObjects": 13,
     "numLandmarks": 7
@@ -189,12 +189,12 @@
       "description": "Circular Base",
       "coordinates": [
         {
-          "x": 3.2468144035674857,
-          "y": 5.632104996726555
+          "x": -3.0700932288601543,
+          "y": 1.7225610535308697
         },
         {
-          "x": 3.2171102246841246,
-          "y": 5.904919229214624
+          "x": -3.265806720135055,
+          "y": 1.8664173062034222
         }
       ]
     },

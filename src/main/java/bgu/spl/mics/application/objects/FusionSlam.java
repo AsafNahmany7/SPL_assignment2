@@ -83,10 +83,10 @@ public class FusionSlam {
                     .filter(tracked -> tracked.getTime() == newPose.getTime())
                     .collect(Collectors.toList());
 
-            for (TrackedObject tracked : matchedObjects) {
+            for (TrackedObject tracked : matchedObjects) {//change2
                 processTrackedObjects(tracked.toLandMark(), newPose);
-                trackedObjectsQueue.remove(tracked);
             }
+            trackedObjectsQueue.removeAll(matchedObjects);
         } finally {
             trackedObjectsLock.unlock();
         }

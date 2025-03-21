@@ -1,5 +1,6 @@
 package bgu.spl.mics;
 
+import bgu.spl.mics.application.messages.TerminatedBroadcast;
 import bgu.spl.mics.application.messages.TickBroadcast;
 
 import java.util.ArrayList;
@@ -77,12 +78,23 @@ public class MessageBusImpl implements MessageBus {
 			System.out.println("עוד רגע שולח את טיק מס': " + ((TickBroadcast) b).getCurrentTick());
 		}
 
+		if(b.getClass() == TerminatedBroadcast.class){
+			System.out.println("מתכוון לשלוח TerminatedBroadcast על ידי: " + ((TerminatedBroadcast) b).getServiceName());
+		}
+
 		for (MicroService m : microServicesQueue) {
 			try {
 				BlockingQueue<Message> messageQueue = ServicesMessageQueues.get(m);
 				if (messageQueue != null) {
+					if(b.getClass() == TerminatedBroadcast.class) {
+						System.out.println("❌❌❌שולח TerminatedBroadcast על ידי: " + ((TerminatedBroadcast) b).getServiceName() + "שולח אל: " + m.getName());
+					}
 					messageQueue.put(b);
+					for (Message message : messageQueue) {
+						System.out.println("✅" + "במיקרוסרוויס:" + m.getName()+ "יש בתור הראשי את ההודעה: " + message.toString());
+					}
 				}
+
 			}
 			catch (InterruptedException ex) {
 				Thread.currentThread().interrupt();
@@ -108,6 +120,7 @@ public class MessageBusImpl implements MessageBus {
 			System.out.println("No microservices subscribed with this event!");
 			return null;
 		}
+
 
 		MicroService m = EventsSubscribersQueues.get(e.getClass()).poll();
 		System.out.println( "לתפעול ה event" + e.getClass() + "נבחר המיקרוסרוויס: " + m.getName());
@@ -140,9 +153,9 @@ public class MessageBusImpl implements MessageBus {
 
 	@Override
 	public void unregister(MicroService m) {
-		if (!ServicesMessageQueues.containsKey(m))
+		if (!ServicesMessageQueues.containsKey(m)) {
 			return;
-
+		}
 		BlockingQueue<Message> queue = ServicesMessageQueues.get(m);
 		List<Event<?>> eventsToRemove = new ArrayList<>();
 
@@ -151,7 +164,6 @@ public class MessageBusImpl implements MessageBus {
 				Event<?> event = (Event<?>) message;
 				eventsToRemove.add(event);
 				EventsFutures.get(event).resolve(null);
-
 			}
 		}
 
@@ -175,7 +187,14 @@ public class MessageBusImpl implements MessageBus {
 
 	@Override
 	public Message awaitMessage(MicroService m) throws InterruptedException {
-		return ServicesMessageQueues.get(m).take();
+		while (ServicesMessageQueues.get(m) != null) {
+			try {
+				return ServicesMessageQueues.get(m).take();
+			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+			}
+		}
+		return null;
 	}
 
 }
