@@ -69,6 +69,10 @@ public class FusionSlam {
         }
     }
 
+    public List<LandMark> getLandmarks() {
+        return landmarks;
+    }
+
     public void processPose(Pose newPose) {
         posesLock.lock();
         try {
