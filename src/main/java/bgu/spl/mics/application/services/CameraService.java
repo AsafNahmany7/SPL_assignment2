@@ -6,7 +6,11 @@ import bgu.spl.mics.application.messages.DetectObjectsEvent;
 import bgu.spl.mics.application.messages.CrashedBroadcast;
 import bgu.spl.mics.application.messages.TerminatedBroadcast;
 import bgu.spl.mics.application.messages.TickBroadcast;
-import bgu.spl.mics.application.objects.*;
+import bgu.spl.mics.application.objects.Camera;
+import bgu.spl.mics.application.objects.StampedDetectedObjects;
+import bgu.spl.mics.application.objects.StatisticalFolder;
+import bgu.spl.mics.application.objects.FusionSlam;
+import bgu.spl.mics.application.objects.DetectedObject;
 
 
 import com.google.gson.Gson;
@@ -52,7 +56,7 @@ public class CameraService extends MicroService {
 
         // הרשמה לטיק
         subscribeBroadcast(TickBroadcast.class, tick -> {
-            if (camera.isEmpty()) {
+            if (camera.isEmpty()) { //נחמני מחק את זה אצלו,נמצא במקום אחר ?
                 System.out.println("בדיקה - האם cameraservice שולח terminatebroadcast");
                 sendBroadcast(new TerminatedBroadcast(this.getName()));
                 camera.setStatus(Camera.status.DOWN);
@@ -78,9 +82,16 @@ public class CameraService extends MicroService {
                         if (stampdetectedObjects != null) {
                             if (stampdetectedObjects.getDetectedObjects() != null && !stampdetectedObjects.getDetectedObjects().isEmpty()) {
                                 System.out.println("בדיקה - שיש אובייקט בתנאי התדירות מול טיק");
-                                boolean errorDetected = stampdetectedObjects.getDetectedObjects()
-                                        .stream()
-                                        .anyMatch(obj -> "ERROR".equals(obj.getId()));
+                                Boolean errorDetected = false;
+                                for (DetectedObject currenObj : stampdetectedObjects.getDetectedObjects()){
+                                    System.out.println("עובר על האובייקטים לחפש error");
+                                    System.out.println("currentObj.getId() ==" + currenObj.getId());
+                                    if(currenObj.getId().equals("ERROR")){
+                                        System.out.println("מצא error");
+                                        errorDetected = true;
+                                        break;
+                                    }
+                                }
 
                                 if (errorDetected) {
                                     System.out.println("בדיקה - האם יש error");
@@ -119,11 +130,12 @@ public class CameraService extends MicroService {
  * @param detectedObjects The detected objects that include the error.
  */
         private void handleSensorError(StampedDetectedObjects detectedObjects) {
-            System.err.println("Error detected in camera: " + camera.getId() + ". Terminating all services.");
+            System.err.println("Error detected in camera: " + camera.getId());
 
             // Update FusionSlam with error details
             updateErrorLog(detectedObjects);
 
+            System.err.println("Camera: " + camera.getId() + " sending CrashedBroadcast");
             // Broadcast CrashedBroadcast to stop all services
             sendBroadcast(new CrashedBroadcast(getName()));
         }

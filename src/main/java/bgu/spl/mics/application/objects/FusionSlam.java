@@ -69,6 +69,10 @@ public class FusionSlam {
         }
     }
 
+    public List<LandMark> getLandmarks() {
+        return landmarks;
+    }
+
     public void processPose(Pose newPose) {
         posesLock.lock();
         try {
@@ -83,7 +87,7 @@ public class FusionSlam {
                     .filter(tracked -> tracked.getTime() == newPose.getTime())
                     .collect(Collectors.toList());
 
-            for (TrackedObject tracked : matchedObjects) {//change2
+            for (TrackedObject tracked : matchedObjects) {
                 processTrackedObjects(tracked.toLandMark(), newPose);
             }
             trackedObjectsQueue.removeAll(matchedObjects);
