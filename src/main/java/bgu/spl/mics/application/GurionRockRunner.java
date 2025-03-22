@@ -77,21 +77,32 @@ public class GurionRockRunner {
 
         List<Thread> serviceThreads = new ArrayList<>();
 
+
+        // Create fusion slam service
+        System.out.println("Creating fusion slam service...");
+        FusionSlamService fusionSlamService = new FusionSlamService(latch);
+        Thread fusionSlamThread = new Thread(fusionSlamService, fusionSlamService.getName());
+        serviceThreads.add(fusionSlamThread);
+        System.out.println("Created service: " + fusionSlamService.getName());
+
+
         // Create camera services
         System.out.println("Creating camera services...");
         for (Camera camera : cameras) {
             CameraService cameraService = new CameraService(camera, latch);
             Thread thread = new Thread(cameraService, cameraService.getName());
             serviceThreads.add(thread);
+            fusionSlamService.registerMicroService(cameraService);
             System.out.println("Created service: " + cameraService.getName());
         }
 
         // Create LiDAR services
         System.out.println("Creating LiDAR services...");
         for (LiDarWorkerTracker tracker : lidars) {
-            LiDarService lidarService = new LiDarService(tracker, latch);
+            LiDarService lidarService = new LiDarService(tracker, latch, cameras.size());
             Thread thread = new Thread(lidarService, lidarService.getName());
             serviceThreads.add(thread);
+            fusionSlamService.registerMicroService(lidarService);
             System.out.println("Created service: " + lidarService.getName());
         }
 
@@ -101,14 +112,9 @@ public class GurionRockRunner {
         PoseService poseService = new PoseService(gpsimu, posePath, latch);
         Thread poseThread = new Thread(poseService, poseService.getName());
         serviceThreads.add(poseThread);
+        fusionSlamService.registerMicroService(poseService);
         System.out.println("Created service: " + poseService.getName());
 
-        // Create fusion slam service
-        System.out.println("Creating fusion slam service...");
-        FusionSlamService fusionSlamService = new FusionSlamService(latch);
-        Thread fusionSlamThread = new Thread(fusionSlamService, fusionSlamService.getName());
-        serviceThreads.add(fusionSlamThread);
-        System.out.println("Created service: " + fusionSlamService.getName());
 
         // Create time service (starts last)
         System.out.println("Creating time service...");
@@ -137,61 +143,13 @@ public class GurionRockRunner {
         }
 
         // Generate output
-        System.out.println("\n===== GENERATING OUTPUT =====");
-        FusionSlam fusionSlam = FusionSlam.getInstance();
-        try {
-            generateOutputFile(fusionSlam, "output.json");
-        } catch (Exception e) {
-            System.err.println("Error generating output file: " + e.getMessage());
-            e.printStackTrace();
-        }
 
-        System.out.println("\nSimulation completed successfully!");
     }
 
     /**
      * Generates the output file from the FusionSlam instance
      */
-    private static void generateOutputFile(FusionSlam fusionSlam, String outputPath) throws Exception {
-        // Get the statistics
-        StatisticalFolder stats = StatisticalFolder.getInstance();
 
-        // Create the root JSON object
-        JsonObject output = new JsonObject();
-        output.addProperty("systemRuntime", stats.getSystemRuntime());
-        output.addProperty("numDetectedObjects", stats.getNumDetectedObjects());
-        output.addProperty("numTrackedObjects", stats.getNumTrackedObjects());
-        output.addProperty("numLandmarks", stats.getNumLandmarks());
-
-        // Add the landmarks
-        JsonObject landmarksObject = new JsonObject();
-        for (LandMark landmark : fusionSlam.getLandmarks()) {
-            JsonObject landmarkJson = new JsonObject();
-            landmarkJson.addProperty("id", landmark.getId());
-            landmarkJson.addProperty("description", landmark.getDescription());
-
-            JsonArray coordinatesArray = new JsonArray();
-            for (CloudPoint point : landmark.getCoordinates()) {
-                JsonObject pointJson = new JsonObject();
-                pointJson.addProperty("x", point.getX());
-                pointJson.addProperty("y", point.getY());
-                coordinatesArray.add(pointJson);
-            }
-
-            landmarkJson.add("coordinates", coordinatesArray);
-            landmarksObject.add(landmark.getId(), landmarkJson);
-        }
-
-        output.add("landMarks", landmarksObject);
-
-        // Write to file
-        try (FileWriter writer = new FileWriter(outputPath)) {
-            Gson gson = new GsonBuilder().setPrettyPrinting().create();
-            gson.toJson(output, writer);
-        }
-
-        System.out.println("Output file created: " + outputPath);
-    }
 
     /**
      * Loads and initializes Camera objects from configuration
@@ -202,6 +160,8 @@ public class GurionRockRunner {
      */
     private static List<Camera> loadCameras(JSONinput input, File dataFolder) throws IOException {
         System.out.println("\n===== LOADING CAMERAS =====");
+
+        // Get the CamerasManager instance
 
         // Extract camera configuration
         CamerasConfigurations camerasConfigurations = input.getCameras();
@@ -244,6 +204,8 @@ public class GurionRockRunner {
             // Add the camera to our list
             cameras.add(camera);
 
+            // Register the camera with the CamerasManager
+
             System.out.println("Created Camera: ID=" + config.getId() +
                     ", Key=" + config.getCameraKey() +
                     ", with " + (cameraData != null ? cameraData.size() : 0) + " time entries");
@@ -269,6 +231,9 @@ public class GurionRockRunner {
 
         System.out.println("Found " + lidarConfigs.length + " LiDAR configurations");
 
+        // Get LidarsManager instance
+
+
         // Create a list to hold all LiDAR instances
         List<LiDarWorkerTracker> lidars = new ArrayList<>();
 
@@ -282,6 +247,8 @@ public class GurionRockRunner {
 
             // Add the new LiDar instance to the list
             lidars.add(lidar);
+
+            // Register with LidarsManager
         }
 
         // Get the absolute path for lidar_data.json
@@ -318,38 +285,50 @@ public class GurionRockRunner {
      * @param dataFolder The folder containing data files
      * @return Initialized GPSIMU object
      */
-    private static GPSIMU loadGPSIMU(JSONinput input, File dataFolder) throws IOException {
+    private static GPSIMU loadGPSIMU(JSONinput input, File dataFolder) {
         System.out.println("\n===== INITIALIZING GPSIMU =====");
 
-        // Get pose data path
-        String poseDataPath = input.getPoseJsonFile();
-
-        // Create absolute path for pose data file
-        File poseDataFile = new File(dataFolder, poseDataPath);
-        String absolutePoseDataPath = poseDataFile.getAbsolutePath();
-        System.out.println("Pose Data Path: " + absolutePoseDataPath);
-
-        // Initialize GPSIMU with the absolute path
         GPSIMU gpsimu = new GPSIMU();
 
         try {
-            gpsimu.loadPoseData(absolutePoseDataPath);
+            // Get the pose data path from configuration
+            String poseDataPath = input.getPoseJsonFile();
+            System.out.println("Pose data path from config: " + poseDataPath);
 
-            // Print some info about the loaded pose data
+            // Convert to absolute path
+            String cleanPath = poseDataPath.replace("./", "");
+            File poseFile = new File(dataFolder, cleanPath);
+            // Make sure the path is correct
+            String absolutePath = poseFile.getAbsolutePath();
+            System.out.println("Looking for pose data at: " + absolutePath);
+
+            // Verify file exists before trying to load
+            if (poseFile.exists() && poseFile.canRead()) {
+                gpsimu.loadPoseData(absolutePath);
+            } else {
+                System.err.println("Cannot access pose data file: " + absolutePath);
+                System.err.println("File exists: " + poseFile.exists());
+                System.err.println("File readable: " + poseFile.canRead());
+            }
+
+            // Verify loaded data
             List<Pose> poses = gpsimu.getPoseList();
-            System.out.println("✅ GPSIMU initialized successfully!");
-            System.out.println("Loaded " + poses.size() + " pose entries");
+            if (poses.isEmpty()) {
+                System.err.println("No poses were loaded from file");
+            } else {
+                System.out.println("Successfully loaded " + poses.size() + " poses");
 
-            // Example: print first few poses
-            int count = Math.min(3, poses.size());
-            for (int i = 0; i < count; i++) {
-                Pose pose = poses.get(i);
-                System.out.println("Pose " + i + ": Time=" + pose.getTime() +
-                        ", Position=(" + pose.getX() + ", " + pose.getY() +
-                        "), Yaw=" + pose.getYaw());
+                // Print first few poses for verification
+                int count = Math.min(3, poses.size());
+                for (int i = 0; i < count; i++) {
+                    Pose pose = poses.get(i);
+                    System.out.println("Pose " + i + ": Time=" + pose.getTime() +
+                            ", Position=(" + pose.getX() + ", " + pose.getY() +
+                            "), Yaw=" + pose.getYaw());
+                }
             }
         } catch (Exception e) {
-            System.err.println("Error initializing GPSIMU: " + e.getMessage());
+            System.err.println("Error in GPSIMU initialization: " + e.getMessage());
             e.printStackTrace();
         }
 

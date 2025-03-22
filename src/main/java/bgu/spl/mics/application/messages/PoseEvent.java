@@ -6,7 +6,7 @@ import bgu.spl.mics.application.objects.Pose;
 /**
  * Represents an event sent by the PoseService to provide the robot's current pose.
  */
-public class PoseEvent implements Event<Void> {
+public class PoseEvent implements Event<Boolean> {
     private final Pose pose;
 
     public PoseEvent(Pose pose) {

@@ -8,15 +8,20 @@ import bgu.spl.mics.Broadcast;
  */
 public class TerminatedBroadcast implements Broadcast {
     private final String serviceName;
+    private final Class<?> serviceClass;
 
-    public TerminatedBroadcast(String serviceName) {
+    public TerminatedBroadcast(String serviceName, Class<?> serviceClass) {
         this.serviceName = serviceName;
+        this.serviceClass = serviceClass;
     }
 
     public String getServiceName() {
         return serviceName;
     }
 
+    public Class<?> getServiceClass() {
+        return serviceClass;
+    }
     @Override
     public String toString() {
         return "TerminatedBroadcast{" +

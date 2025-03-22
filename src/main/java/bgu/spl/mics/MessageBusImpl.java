@@ -47,7 +47,6 @@ public class MessageBusImpl implements MessageBus {
 		if(!BrodcastSubscribersQueues.get(type).contains(m)) {
 			BrodcastSubscribersQueues.get(type).add(m);
 		}
-		System.out.println( m.getName() + "(M.Bus) subs to " + type);
 	}
 
 	@Override
@@ -63,35 +62,25 @@ public class MessageBusImpl implements MessageBus {
 	public void sendBroadcast(Broadcast b) {
 
 		if(!BrodcastSubscribersQueues.containsKey(b.getClass())) {
-			System.out.println("No Such brodcast is listed please list it with a subscribing microservice first!");
 			return;
 		}
 
 		if(BrodcastSubscribersQueues.get(b.getClass()).isEmpty()) {
-			System.out.println("No microservices subscribed with this event!");
 			return;
 		}
 
 		BlockingQueue<MicroService> microServicesQueue = BrodcastSubscribersQueues.get(b.getClass());
 
-		if(b.getClass() == TickBroadcast.class){
-			System.out.println("עוד רגע שולח את טיק מס': " + ((TickBroadcast) b).getCurrentTick());
-		}
 
-		if(b.getClass() == TerminatedBroadcast.class){
-			System.out.println("מתכוון לשלוח TerminatedBroadcast על ידי: " + ((TerminatedBroadcast) b).getServiceName());
-		}
 
 		for (MicroService m : microServicesQueue) {
 			try {
 				BlockingQueue<Message> messageQueue = ServicesMessageQueues.get(m);
 				if (messageQueue != null) {
 					if(b.getClass() == TerminatedBroadcast.class) {
-						System.out.println("❌❌❌שולח TerminatedBroadcast על ידי: " + ((TerminatedBroadcast) b).getServiceName() + "שולח אל: " + m.getName());
 					}
 					messageQueue.put(b);
 					for (Message message : messageQueue) {
-						System.out.println("✅" + "במיקרוסרוויס:" + m.getName()+ "יש בתור הראשי את ההודעה: " + message.toString());
 					}
 				}
 
@@ -102,7 +91,6 @@ public class MessageBusImpl implements MessageBus {
 		}
 
 		if(b.getClass() == TickBroadcast.class){
-			System.out.println("כאן כבר נשלח טיק מס': " + ((TickBroadcast) b).getCurrentTick());
 		}
 
 	}
@@ -110,33 +98,25 @@ public class MessageBusImpl implements MessageBus {
 	
 	@Override
 	public <T> Future<T> sendEvent(Event<T> e) {
-		System.out.println( e.getClass() + "האם sendevent הגיע למסג'-באס ?");
 		if(!EventsSubscribersQueues.containsKey(e.getClass())) {
-			System.out.println(e.getClass() + "No Such Event is listed please list it with a subscribing microservice first!");
 			return null;
 		}
 
 		if(EventsSubscribersQueues.get(e.getClass()).isEmpty()) {
-			System.out.println("No microservices subscribed with this event!");
 			return null;
 		}
 
 
 		MicroService m = EventsSubscribersQueues.get(e.getClass()).poll();
-		System.out.println( "לתפעול ה event" + e.getClass() + "נבחר המיקרוסרוויס: " + m.getName());
 		try {
 			ServicesMessageQueues.get(m).put(e);
-			System.out.println( "לתור ההודעות של " + m.getName() + "הוכנס הevent: " + e.getClass());
 		} catch (InterruptedException ex) {
-			System.out.println( "הפריעו לsendevent");
 			Thread.currentThread().interrupt();
 		}
 
 		try {
 			EventsSubscribersQueues.get(e.getClass()).put(m);
-			System.out.println("לתור הevent: " + e.getClass() + "הוכנס חזרה המיקרוסרוויס: " + m.getName());
 		} catch (InterruptedException ex) {
-			System.out.println( "הפריעו לsendevent");
 			Thread.currentThread().interrupt();
 		}
 

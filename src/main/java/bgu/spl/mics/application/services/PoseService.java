@@ -30,6 +30,7 @@ public class PoseService extends MicroService {
     private final GPSIMU gpsimu;
     private int currentTick;
     private final CountDownLatch latch;
+    private int maxTime;
 
     /**
      * Constructor for PoseService.
@@ -40,9 +41,16 @@ public class PoseService extends MicroService {
     public PoseService(GPSIMU gpsimu, String jsonFilePath, CountDownLatch latch) {
         super("PoseService");
         this.gpsimu = gpsimu;
-        this.gpsimu.loadPoseData(jsonFilePath);
+        // Don't load pose data here - it should already be loaded
         this.currentTick = 0;
         this.latch = latch;
+        // Find max pose time
+        for (Pose pose : gpsimu.getPoseList()) {
+            if (pose.getTime() > maxTime) {
+                maxTime = pose.getTime();
+            }
+        }
+        System.out.println(maxTime+ "🍆🍆🍆🍆🍆🍆🍆🍆🍆🍆🍆🍆🍆🍆🍆🍆"); // חציל בגאווה
     }
 
     /**
@@ -55,30 +63,65 @@ public class PoseService extends MicroService {
         // Subscribe to TickBroadcast
         subscribeBroadcast(TickBroadcast.class, tick -> {
             currentTick = tick.getCurrentTick();
-            // קבלת ה-Pose הנוכחי מתוך GPSIMU
+            this.time=currentTick;
             List<Pose> poseList = gpsimu.getPoseList();
-            Pose currentPose = poseList.stream()
-                    .filter(p -> p.getTime() == currentTick)
-                    .findFirst()
-                    .orElse(null);
 
-            if (currentPose != null) {
-                // שליחת PoseEvent עם ה-Pose הנוכחי
-                sendEvent(new PoseEvent(currentPose));
+
+
+            // Check if we've already processed the pose with the highest time value
+            System.out.println("🍆🍆🍆🍆🍆🍆🍆 current ticka is :" +currentTick);
+            if (currentTick > maxTime) {
+                System.out.println("🚀 PoseService: All poses processed. Current tick: " +
+                        currentTick + ", Max pose time: " + maxTime);
+                updateOutputWithPoses();
+                sendBroadcast(new TerminatedBroadcast(getName(), PoseService.class));
+                terminate();
+            } else{
+                // Process current pose if it exists
+                Pose currentPose = null;
+                for (Pose pose : poseList) {
+                    if (pose.getTime() == currentTick) {
+                        currentPose = pose;
+                        break;
+                    }
+                }
+
+                if (currentPose != null) {
+                    sendEvent(new PoseEvent(currentPose));
+                }
+
+
+
+
+
+
             }
+
+
         });
 
         // Subscribe to CrashedBroadcast
         subscribeBroadcast(CrashedBroadcast.class, crashed -> {
             System.out.println("PoseService received crash notification from: " + crashed.getServiceName());
             updateOutputWithPoses(); // עדכון המידע ב-FusionSlam
+            sendBroadcast(new TerminatedBroadcast(getName(), PoseService.class));
             terminate();
         });
 
         // Subscribe to TerminatedBroadcast
         subscribeBroadcast(TerminatedBroadcast.class, terminated -> {
-            System.out.println(getName() + " received terminated broadcast.");
-            terminate();
+           if(terminated.getServiceClass()!=null && terminated.getServiceClass()== TimeService.class) {
+               System.out.println("PoseService received terminated notification from: " + terminated.getServiceName());
+               updateOutputWithPoses();
+               sendBroadcast(new TerminatedBroadcast(this.getName(), PoseService.class));
+               terminate();
+           }
+
+           if(terminated.getServiceClass()!=null && terminated.getServiceClass()== FusionSlamService.class) {
+               updateOutputWithPoses();
+               sendBroadcast(new TerminatedBroadcast(this.getName(), PoseService.class));
+               terminate();
+           }
         });
         latch.countDown();
     }
@@ -89,7 +132,6 @@ public class PoseService extends MicroService {
 
     private void updateOutputWithPoses() {
         FusionSlam fusionSlam = FusionSlam.getInstance();
-
         // עדכון הרשימה של ה-poses בפלט
         fusionSlam.updatePosesOutput(currentTick);
     }

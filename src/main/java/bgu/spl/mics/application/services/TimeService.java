@@ -38,13 +38,11 @@ public class TimeService extends MicroService {
      */
     @Override
     protected void initialize() {
-        System.out.println("timeser initialize and should wait to latch");
         try {
             latch.await();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
-        System.out.println("timeser finish to wait for latch and should start sending ticks");
         // Thread to simulate ticking
         timerThread = new Thread(() -> {
             try {
@@ -52,40 +50,31 @@ public class TimeService extends MicroService {
                 System.out.println("בדיקה -t.s." + currentTick);
                 while (currentTick < duration && !timerThread.isInterrupted()) {
                     currentTick++;
+                    this.time=currentTick;
                     sendBroadcast(new TickBroadcast(currentTick, duration));
                     statsFolder.incrementSystemRuntime();
                     Thread.sleep(tickTime);
                 }
-                // Final broadcast and terminate
+                // Final broadcast
                 sendBroadcast(new TickBroadcast(currentTick, duration)); // Last tick
-                System.out.println("finished all the ticks,and suposed to terminate");
-                sendBroadcast(new TerminatedBroadcast("TimeService"));
-                System.out.println("sended terminate broadcats of timeservice");
-                terminate();
-                System.out.println("timeservice terminated-------");
-                if(timerThread != null){
-                    System.out.println("timeservice interupting <<<<<<{{{{");
-                    timerThread.interrupt();
-                    System.out.println("timeservice interupting >>>>>>>>}}}}}");
-                }
+                System.out.println("finished all the ticks, sending termination broadcast");
+                sendBroadcast(new TerminatedBroadcast("TimeService", TimeService.class));
+                System.out.println("sent terminate broadcast from timeservice");
+
+                // DON'T terminate here - wait for FusionSlamService's broadcast instead
             } catch (InterruptedException e) {
-                System.out.println("timeservice catch------------");
+                System.out.println("timeservice catch - interrupted");
                 Thread.currentThread().interrupt();
-                timerThread.interrupt();
-            } finally {
-                System.out.println("timeservice finally-----------");
-                this.terminate(); // ווידוא קריאה ל-terminate גם במקרה של חריגה
-                if(timerThread != null){
-                    System.out.println("timeservice interupting <<<<<<{{{{");
-                    timerThread.interrupt();
-                    System.out.println("timeservice interupting >>>>>>>>}}}}}");
-                }
             }
         });
         subscribeBroadcast(TerminatedBroadcast.class, terminated -> {
             System.out.println(getName() + " received terminated broadcast.");
-            timerThread.interrupt();
-            terminate();
+            if(terminated.getServiceClass()!= null && terminated.getServiceClass().equals(FusionSlamService.class)){
+                System.out.println("sending interrupt to time service at tick " + currentTick);
+                timerThread.interrupt();
+                terminate();
+            }
+
         });
         // Start the timer thread
         timerThread.start();

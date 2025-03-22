@@ -22,16 +22,19 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public abstract class MicroService implements Runnable {
 
+
     MessageBus messageBus = MessageBusImpl.getInstance();
-    private boolean terminated = false;
-    private final String name;
-    private ConcurrentHashMap<Class<? extends Message>, Callback<?>> callbacksMap = new ConcurrentHashMap<>();
+    protected int time;
+    protected boolean terminated = false;
+    protected final String name;
+    protected ConcurrentHashMap<Class<? extends Message>, Callback<?>> callbacksMap = new ConcurrentHashMap<>();
     /**
      * @param name the micro-service name (used mainly for debugging purposes -
      *             does not have to be unique)
      */
     public MicroService(String name) {
         this.name = name;
+        time = 0;
     }
 
     /**
@@ -83,7 +86,6 @@ public abstract class MicroService implements Runnable {
     protected final <B extends Broadcast> void subscribeBroadcast(Class<B> type, Callback<B> callback) {
         messageBus.subscribeBroadcast(type,this);
         callbacksMap.putIfAbsent(type, callback);
-        System.out.println(this.name + "(M.S) subs to " + type);
     }
 
     /**
@@ -99,7 +101,6 @@ public abstract class MicroService implements Runnable {
      * 	       			null in case no micro-service has subscribed to {@code e.getClass()}.
      */
     protected final <T> Future<T> sendEvent(Event<T> e) {
-        System.out.println( e.toString() + "האם sendevent הגיע למיקרוסרוויס ?");
         return messageBus.sendEvent(e);
     }
 
@@ -137,9 +138,8 @@ public abstract class MicroService implements Runnable {
      * message.
      */
     protected final void terminate() {
-        System.out.println("האם " + this.getName() + "נכנס לterminate ???");
+        System.out.println(this.getName() + " terminated\uD83D\uDE80 at time : "+time);
         this.terminated = true;
-        System.out.println(this.getName() + " terminate הופך לtrue, כלומר צריך להפסיק להיכנס ללואה בrun");
         messageBus.unregister(this);
         // מבצע אינטרפט לכל ת'רד של המיקרו-שירות כדי לשחרר את `awaitMessage()`
         Thread.currentThread().interrupt();
@@ -151,6 +151,9 @@ public abstract class MicroService implements Runnable {
      */
     public final String getName() {
         return name;
+    }
+    public Boolean isTerminated() {
+        return terminated;
     }
 
     /**
@@ -164,20 +167,15 @@ public abstract class MicroService implements Runnable {
 
         initialize();
         while (!terminated) {
-            System.out.println(this.name + " not terminated & wait");
             try {
                 Message message = messageBus.awaitMessage(this);
-                System.out.println( "❌ המיקרוסרוויס: " + this.getName() + "לוקח מהתור הראשי את המשימה: " + message.toString());
 
 
                 Callback<Message> callback = (Callback<Message>) callbacksMap.get(message.getClass());
                 if (callback != null) {
                     callback.call(message);
-                } else {
-                    System.err.println("No callback found for message of type: " + message.getClass());
                 }
             } catch (InterruptedException e) {
-                System.out.println(this.name + " interrupted, exiting...");
                 Thread.currentThread().interrupt(); // הבטחה שהת'רד יסיים ולא ימשיך לרוץ
                 break;
             }

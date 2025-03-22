@@ -1,6 +1,7 @@
 package bgu.spl.mics.application.services;
 
 import bgu.spl.mics.Callback;
+import bgu.spl.mics.Future;
 import bgu.spl.mics.MicroService;
 import bgu.spl.mics.application.messages.DetectObjectsEvent;
 import bgu.spl.mics.application.messages.CrashedBroadcast;
@@ -21,7 +22,10 @@ import com.google.gson.reflect.TypeToken;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.LinkedBlockingQueue;
 
 /**
  * CameraService is responsible for processing data from the camera and
@@ -32,7 +36,7 @@ import java.util.concurrent.CountDownLatch;
 public class CameraService extends MicroService {
     private final Camera camera;
     private final String outputFilePath = "output.json";
-    private final CountDownLatch latch;
+    private final CountDownLatch latch;;
 
     /**
      * Constructor for CameraService.
@@ -56,69 +60,105 @@ public class CameraService extends MicroService {
 
         // הרשמה לטיק
         subscribeBroadcast(TickBroadcast.class, tick -> {
-            if (camera.isEmpty()) { //נחמני מחק את זה אצלו,נמצא במקום אחר ?
-                System.out.println("בדיקה - האם cameraservice שולח terminatebroadcast");
-                sendBroadcast(new TerminatedBroadcast(this.getName()));
+
+
+            if (camera.isEmpty()) {
+                updateLastCamerasFrame();
+                sendBroadcast(new TerminatedBroadcast(this.getName(),CameraService.class));
                 camera.setStatus(Camera.status.DOWN);
                 terminate();
-            }else {
+            }
+
+
+            else {
                 if (camera.getStatus() == Camera.status.UP) {
-                    System.out.println("בדיקה - תנאי מצלמה up");
                     StampedDetectedObjects statisticObjects = camera.detectObjectsAtTime(tick.getCurrentTick());
-                    System.out.println(tick.getCurrentTick() + "בדיקה במצלמה-סר - מס' tick:");
                     if (statisticObjects != null) {
-                        System.out.println("בזמן טיק" + tick.getCurrentTick() + "stampedobject לא null");
                         if (statisticObjects.getDetectedObjects() != null && !statisticObjects.getDetectedObjects().isEmpty()) {
-                            System.out.println("בדיקה במצלמה-סר - detectobject לא null");
                             StatisticalFolder statFolder = StatisticalFolder.getInstance();
                             int numbersOfObjects = statisticObjects.getDetectedObjects().size();
                             statFolder.setNumDetectedObjects(numbersOfObjects);
                         }
                     }
+
                     int currentTick = tick.getCurrentTick();
+                    this.time=currentTick;
+
                     if (camera.getFrequency() < currentTick) {
-                        System.out.println("בדיקה במצלמה-סר - תדירות קטן מהטיק");
+
                         StampedDetectedObjects stampdetectedObjects = camera.detectObjectsAtTime(currentTick - camera.getFrequency());
+
                         if (stampdetectedObjects != null) {
+
                             if (stampdetectedObjects.getDetectedObjects() != null && !stampdetectedObjects.getDetectedObjects().isEmpty()) {
-                                System.out.println("בדיקה - שיש אובייקט בתנאי התדירות מול טיק");
+
+                                // Get all non-ERROR objects
+                                List<DetectedObject> validObjects = new ArrayList<>();
                                 Boolean errorDetected = false;
-                                for (DetectedObject currenObj : stampdetectedObjects.getDetectedObjects()){
-                                    System.out.println("עובר על האובייקטים לחפש error");
-                                    System.out.println("currentObj.getId() ==" + currenObj.getId());
-                                    if(currenObj.getId().equals("ERROR")){
-                                        System.out.println("מצא error");
+
+                            // Separate valid objects from ERROR objects
+                                for (DetectedObject currentObj : stampdetectedObjects.getDetectedObjects()) {
+                                    if (currentObj.getId().equals("ERROR")) {
                                         errorDetected = true;
-                                        break;
+                                    } else {
+                                        validObjects.add(currentObj);
                                     }
                                 }
 
-                                if (errorDetected) {
-                                    System.out.println("בדיקה - האם יש error");
-                                    handleSensorError(stampdetectedObjects); // Handle the error
-                                } else {
-                                    System.out.println(currentTick + "מצלמה-סר שולח event של טיק: ");
-                                    sendEvent(new DetectObjectsEvent(stampdetectedObjects, camera.getFrequency()));
-                                    camera.removeStampedObject(stampdetectedObjects);
+                     // Process valid objects first if there are any
+                                if (!validObjects.isEmpty()) {
+                                    // Create a new StampedDetectedObjects with only valid objects
+                                    StampedDetectedObjects validStampedObjects = new StampedDetectedObjects(stampdetectedObjects.getTime());
+                                    for (DetectedObject obj : validObjects) {
+                                        validStampedObjects.addDetectedObject(obj);
+                                    }
+
+                                    // Send event for valid objects
+                                    sendEvent(new DetectObjectsEvent(validStampedObjects, camera.getFrequency()));
+
+                                    // Add future to camera queue
+
                                 }
+// Now handle the ERROR if detected
+                                if (errorDetected) {
+                                    handleSensorError(stampdetectedObjects); // Use the original object that contains the ERROR
+                                }
+// Remove the processed objects
+                                camera.removeStampedObject(stampdetectedObjects);
+                            }
                             }
                         }
                     }
                 }
-            }
+
         });
 
-        // הרשמה ל-CrashedBroadcast
+        // CrashedBroadcast handler
         subscribeBroadcast(CrashedBroadcast.class, crashed -> {
             System.out.println("CameraService received crash notification from: " + crashed.getServiceName());
-            updateLastCamerasFrame(); // עדכון המידע ב-FusionSlam
+
+            // Update last camera frame for output
+            updateLastCamerasFrame();
+
+
+
+            // Set camera status and notify CamerasManager
             camera.setStatus(Camera.status.DOWN);
+            sendBroadcast(new TerminatedBroadcast(this.getName(),CameraService.class));
+            // Terminate
             terminate();
         });
-        // הרשמה ל-TerminatedBroadcast
-        subscribeBroadcast(TerminatedBroadcast.class, terminated -> {  ////
+
+// TerminatedBroadcast handler
+        subscribeBroadcast(TerminatedBroadcast.class, terminated -> {
             System.out.println(getName() + " received terminated broadcast.");
-            terminate();
+            if((terminated.getServiceClass()!=null) && terminated.getServiceClass().equals(TimeService.class)){
+                System.out.println(getName()+" recived time termination");
+                camera.setStatus(Camera.status.DOWN);
+                updateLastCamerasFrame();
+                sendBroadcast(new TerminatedBroadcast(this.getName(),CameraService.class));
+                terminate();
+            }
         });
         latch.countDown();
         System.out.println("cameraser End initialized ]]]]]]]]]]");
@@ -130,14 +170,26 @@ public class CameraService extends MicroService {
  * @param detectedObjects The detected objects that include the error.
  */
         private void handleSensorError(StampedDetectedObjects detectedObjects) {
+            updateLastCamerasFrame();
             System.err.println("Error detected in camera: " + camera.getId());
 
             // Update FusionSlam with error details
             updateErrorLog(detectedObjects);
 
+            // Mark the camera as having an ERROR status
+            camera.setStatus(Camera.status.ERROR);
+
+            // Wait for any pending futures to complete
+
+
+            // Mark this camera as done in the CamerasManager
+
             System.err.println("Camera: " + camera.getId() + " sending CrashedBroadcast");
             // Broadcast CrashedBroadcast to stop all services
             sendBroadcast(new CrashedBroadcast(getName()));
+
+            // Terminate this service
+            terminate();
         }
 
 /**
@@ -170,7 +222,12 @@ public class CameraService extends MicroService {
             fusionSlam.updateOutput("errorDetails", errorDetails);
         }
 
-/**
+    public Camera getCamera() {
+
+            return camera;
+    }
+
+    /**
  * Updates the last frame of the camera in the FusionSlam output.
  */
         private void updateLastCamerasFrame() {
