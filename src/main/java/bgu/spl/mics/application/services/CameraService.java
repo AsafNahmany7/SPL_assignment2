@@ -36,7 +36,8 @@ import java.util.concurrent.LinkedBlockingQueue;
 public class CameraService extends MicroService {
     private final Camera camera;
     private final String outputFilePath = "output.json";
-    private final CountDownLatch latch;;
+    private final CountDownLatch latch;
+    private StampedDetectedObjects LastFrame;
 
     /**
      * Constructor for CameraService.
@@ -63,10 +64,11 @@ public class CameraService extends MicroService {
 
 
             if (camera.isEmpty()) {
+                System.err.println("No frames available for Camera" + camera.getId() + " to update.");
                 updateLastCamerasFrame();
-                sendBroadcast(new TerminatedBroadcast(this.getName(),CameraService.class));
                 camera.setStatus(Camera.status.DOWN);
                 terminate();
+                sendBroadcast(new TerminatedBroadcast(this.getName(),CameraService.class));
             }
 
 
@@ -91,7 +93,7 @@ public class CameraService extends MicroService {
                         if (stampdetectedObjects != null) {
 
                             if (stampdetectedObjects.getDetectedObjects() != null && !stampdetectedObjects.getDetectedObjects().isEmpty()) {
-
+                                LastFrame = stampdetectedObjects;
                                 // Get all non-ERROR objects
                                 List<DetectedObject> validObjects = new ArrayList<>();
                                 Boolean errorDetected = false;
@@ -140,13 +142,12 @@ public class CameraService extends MicroService {
             // Update last camera frame for output
             updateLastCamerasFrame();
 
-
-
             // Set camera status and notify CamerasManager
             camera.setStatus(Camera.status.DOWN);
-            sendBroadcast(new TerminatedBroadcast(this.getName(),CameraService.class));
+
             // Terminate
             terminate();
+            sendBroadcast(new TerminatedBroadcast(this.getName(),CameraService.class));
         });
 
 // TerminatedBroadcast handler
@@ -156,8 +157,9 @@ public class CameraService extends MicroService {
                 System.out.println(getName()+" recived time termination");
                 camera.setStatus(Camera.status.DOWN);
                 updateLastCamerasFrame();
-                sendBroadcast(new TerminatedBroadcast(this.getName(),CameraService.class));
+
                 terminate();
+                sendBroadcast(new TerminatedBroadcast(this.getName(),CameraService.class));
             }
         });
         latch.countDown();
@@ -186,10 +188,11 @@ public class CameraService extends MicroService {
 
             System.err.println("Camera: " + camera.getId() + " sending CrashedBroadcast");
             // Broadcast CrashedBroadcast to stop all services
-            sendBroadcast(new CrashedBroadcast(getName()));
+
 
             // Terminate this service
             terminate();
+            sendBroadcast(new CrashedBroadcast(getName()));
         }
 
 /**
@@ -231,18 +234,18 @@ public class CameraService extends MicroService {
  * Updates the last frame of the camera in the FusionSlam output.
  */
         private void updateLastCamerasFrame() {
-            if (camera.getDetectedObjects().isEmpty()) {
-                System.err.println("No frames available for Camera" + camera.getId() + " to update.");
-                return;
-            }
+            //if (camera.getDetectedObjects().isEmpty()) {
+              //  System.err.println("No frames available for Camera" + camera.getId() + " to update.");
+              //  return;
+          //  }
 
             FusionSlam fusionSlam = FusionSlam.getInstance();
             JsonObject lastCamerasFrame = new JsonObject();
             JsonObject cameraData = new JsonObject();
 
-            StampedDetectedObjects lastFrame = camera.getDetectedObjects().get(camera.getDetectedObjects().size() - 1);
-            cameraData.addProperty("time", lastFrame.getTime());
-            cameraData.add("detectedObjects", new Gson().toJsonTree(lastFrame.getDetectedObjects()));
+            //StampedDetectedObjects lastFrame = camera.getDetectedObjects().get(camera.getDetectedObjects().size() - 1);
+            cameraData.addProperty("time", LastFrame.getTime());
+            cameraData.add("detectedObjects", new Gson().toJsonTree(LastFrame.getDetectedObjects()));
             lastCamerasFrame.add("Camera" + camera.getId(), cameraData);
 
             fusionSlam.updateOutput("lastCamerasFrame", lastCamerasFrame);

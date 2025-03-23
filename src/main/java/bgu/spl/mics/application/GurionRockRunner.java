@@ -112,7 +112,7 @@ public class GurionRockRunner {
         PoseService poseService = new PoseService(gpsimu, posePath, latch);
         Thread poseThread = new Thread(poseService, poseService.getName());
         serviceThreads.add(poseThread);
-        fusionSlamService.registerMicroService(poseService);
+        //fusionSlamService.registerMicroService(poseService);
         System.out.println("Created service: " + poseService.getName());
 
 
@@ -134,6 +134,7 @@ public class GurionRockRunner {
         System.out.println("Waiting for all services to complete...");
         try {
             for (Thread thread : serviceThreads) {
+                System.out.println("מחכה שהת'רד: " + thread.getName() + " יסתיים");
                 thread.join();
                 System.out.println(thread.getName() + " has completed");
             }
@@ -142,14 +143,7 @@ public class GurionRockRunner {
             e.printStackTrace();
         }
 
-        // Generate output
-
     }
-
-    /**
-     * Generates the output file from the FusionSlam instance
-     */
-
 
     /**
      * Loads and initializes Camera objects from configuration

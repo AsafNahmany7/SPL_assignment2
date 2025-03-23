@@ -55,7 +55,7 @@ public class FusionSlamService extends MicroService {
 
         // Subscribe to TerminatedBroadcast
         subscribeBroadcast(TerminatedBroadcast.class, terminated -> {
-            System.out.println("fusionslamser got terminate from ksksakfnasfnaslfnasfasnf"+ terminated.getServiceName());
+            System.out.println("fusionslamser got terminate from ----------------"+ terminated.getServiceName());
            if(ServicesDown()){
                sendBroadcast(new TerminatedBroadcast(getName(), FusionSlamService.class));
                generateFinalOutput();
@@ -67,11 +67,11 @@ public class FusionSlamService extends MicroService {
         // Subscribe to CrashedBroadcast
         subscribeBroadcast(CrashedBroadcast.class, crashed -> {
             System.out.println("FusionSlamService received crash notification from: " + crashed.getServiceName());
-            if(ServicesDown()) {
-                sendBroadcast(new TerminatedBroadcast(this.getName(), FusionSlam.class));
-                generateFinalOutput();
+
+                generateERROROutput();
                 terminate();
-            }
+                sendBroadcast(new TerminatedBroadcast(this.getName(), FusionSlam.class));
+
         });
 
         latch.countDown();
@@ -84,8 +84,11 @@ public class FusionSlamService extends MicroService {
 
     private boolean ServicesDown(){
         for(MicroService microService : listofMicroServices){
-            if(!microService.isTerminated())
+            System.out.println(microService.getName() + " בודק אם terminated ");
+            if(!microService.isTerminated()) {
+                System.out.println(microService.getName() + " לא terminated עדיין ");
                 return false;
+            }
         }
         return true;
     }
@@ -103,6 +106,60 @@ public class FusionSlamService extends MicroService {
 
             // Create the root JSON object
             JsonObject output = new JsonObject();
+            output.addProperty("systemRuntime", stats.getSystemRuntime());
+            output.addProperty("numDetectedObjects", stats.getNumDetectedObjects());
+            output.addProperty("numTrackedObjects", stats.getNumTrackedObjects());
+            output.addProperty("numLandmarks", stats.getNumLandmarks());
+
+            // Add the landmarks
+            JsonObject landmarksObject = new JsonObject();
+            for (LandMark landmark : fusionSlam.getLandmarks()) {
+                JsonObject landmarkJson = new JsonObject();
+                landmarkJson.addProperty("id", landmark.getId());
+                landmarkJson.addProperty("description", landmark.getDescription());
+
+                // Add coordinates
+                JsonArray coordinatesArray = new JsonArray();
+                for (CloudPoint point : landmark.getCoordinates()) {
+                    JsonObject pointJson = new JsonObject();
+                    pointJson.addProperty("x", point.getX());
+                    pointJson.addProperty("y", point.getY());
+                    coordinatesArray.add(pointJson);
+                }
+                landmarkJson.add("coordinates", coordinatesArray);
+
+                landmarksObject.add(landmark.getId(), landmarkJson);
+            }
+
+            output.add("landMarks", landmarksObject);
+
+            // Write to file
+            try (FileWriter writer = new FileWriter(outputPath)) {
+                Gson gson = new GsonBuilder().setPrettyPrinting().create();
+                gson.toJson(output, writer);
+            }
+
+            System.out.println("Output file created: " + outputPath);
+        } catch (Exception e) {
+            System.err.println("FusionSlamService: Error generating final output: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    private void generateERROROutput() {
+        System.out.println("FusionSlamService: Generating ERROR output");
+
+        try {
+            FusionSlam fusionSlam = FusionSlam.getInstance();
+            String outputPath = "error_output.json";
+            JsonObject output = new JsonObject();
+
+            output.add("",fusionSlam.getOutputData());//האם זה תקין ??
+
+            // Get the statistics
+            StatisticalFolder stats = StatisticalFolder.getInstance();
+
+            // Create the root JSON object
             output.addProperty("systemRuntime", stats.getSystemRuntime());
             output.addProperty("numDetectedObjects", stats.getNumDetectedObjects());
             output.addProperty("numTrackedObjects", stats.getNumTrackedObjects());

@@ -26,14 +26,18 @@ public class LiDarDataBase {
     public StampedCloudPoints searchStampedClouds(int time,String id) {
         //Assume correct input
         StampedCloudPoints output = null;
+        System.out.println("\uD83C\uDFB2 מתחיל לחפש");
         for (StampedCloudPoints stampedCloudPoints : stampedCloud) {
+            System.out.println(stampedCloudPoints.getTime() + "--->" + time);
+            System.out.println(stampedCloudPoints.getId() + "--->" + id);
             if (stampedCloudPoints.getTime() == time) {
                 if (stampedCloudPoints.getId().equals(id)) {
+                    System.out.println("מצאתי ! \uD83D\uDECE\uFE0F");
                     output = stampedCloudPoints;
+                    break;
                 }
             }
         }
-        System.out.println("הsearchStampedClouds מצא בזמן: " + time + "וid: " + id + "את ה: " + output.getCloudPoints().toString());
         return output;
     }
 

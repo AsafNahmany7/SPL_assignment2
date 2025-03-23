@@ -48,6 +48,10 @@ public class FusionSlam {
         return FusionSlamHolder.INSTANCE;
     }
 
+    public JsonObject getOutputData(){
+        return outputData;
+    }
+
     public void addTrackedObject(TrackedObject trackedObject) {
         posesLock.lock();
         try {

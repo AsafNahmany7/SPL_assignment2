@@ -69,13 +69,13 @@ public class PoseService extends MicroService {
 
 
             // Check if we've already processed the pose with the highest time value
-            System.out.println("🍆🍆🍆🍆🍆🍆🍆 current ticka is :" +currentTick);
             if (currentTick > maxTime) {
                 System.out.println("🚀 PoseService: All poses processed. Current tick: " +
                         currentTick + ", Max pose time: " + maxTime);
                 updateOutputWithPoses();
-                sendBroadcast(new TerminatedBroadcast(getName(), PoseService.class));
                 terminate();
+                //sendBroadcast(new TerminatedBroadcast(getName(), PoseService.class));
+
             } else{
                 // Process current pose if it exists
                 Pose currentPose = null;
@@ -104,8 +104,9 @@ public class PoseService extends MicroService {
         subscribeBroadcast(CrashedBroadcast.class, crashed -> {
             System.out.println("PoseService received crash notification from: " + crashed.getServiceName());
             updateOutputWithPoses(); // עדכון המידע ב-FusionSlam
-            sendBroadcast(new TerminatedBroadcast(getName(), PoseService.class));
             terminate();
+            sendBroadcast(new TerminatedBroadcast(getName(), PoseService.class));
+
         });
 
         // Subscribe to TerminatedBroadcast
@@ -113,14 +114,16 @@ public class PoseService extends MicroService {
            if(terminated.getServiceClass()!=null && terminated.getServiceClass()== TimeService.class) {
                System.out.println("PoseService received terminated notification from: " + terminated.getServiceName());
                updateOutputWithPoses();
-               sendBroadcast(new TerminatedBroadcast(this.getName(), PoseService.class));
                terminate();
+               sendBroadcast(new TerminatedBroadcast(this.getName(), PoseService.class));
+
            }
 
            if(terminated.getServiceClass()!=null && terminated.getServiceClass()== FusionSlamService.class) {
                updateOutputWithPoses();
-               sendBroadcast(new TerminatedBroadcast(this.getName(), PoseService.class));
                terminate();
+               sendBroadcast(new TerminatedBroadcast(this.getName(), PoseService.class));
+
            }
         });
         latch.countDown();

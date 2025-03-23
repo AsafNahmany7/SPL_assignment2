@@ -51,6 +51,7 @@ public class TimeService extends MicroService {
                 while (currentTick < duration && !timerThread.isInterrupted()) {
                     currentTick++;
                     this.time=currentTick;
+                    System.out.println("⏰sending tick: " + currentTick);
                     sendBroadcast(new TickBroadcast(currentTick, duration));
                     statsFolder.incrementSystemRuntime();
                     Thread.sleep(tickTime);

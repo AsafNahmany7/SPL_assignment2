@@ -142,7 +142,7 @@ public abstract class MicroService implements Runnable {
         this.terminated = true;
         messageBus.unregister(this);
         // מבצע אינטרפט לכל ת'רד של המיקרו-שירות כדי לשחרר את `awaitMessage()`
-        Thread.currentThread().interrupt();
+        //Thread.currentThread().interrupt();
     }
 
     /**
@@ -180,6 +180,7 @@ public abstract class MicroService implements Runnable {
                 break;
             }
         }
+        System.out.println(this.getName() + " terminated - כלומר יצא מהלולאה של 'run' ");
     }
 
 
