@@ -48,6 +48,7 @@ public class CameraService extends MicroService {
         super("CameraService" + camera.getId());
         this.camera = camera;
         this.latch = latch;
+        LastFrame = null;
     }
 
     /**
@@ -236,10 +237,10 @@ public class CameraService extends MicroService {
  * Updates the last frame of the camera in the FusionSlam output.
  */
         private void updateLastCamerasFrame() {
-            //if (camera.getDetectedObjects().isEmpty()) {
-              //  System.err.println("No frames available for Camera" + camera.getId() + " to update.");
-              //  return;
-          //  }
+            if (LastFrame == null) {
+                System.err.println("No frames detected at all at Camera: " + camera.getId());
+                return;
+           }
 
             FusionSlam fusionSlam = FusionSlam.getInstance();
             JsonObject lastCamerasFrame = new JsonObject();
