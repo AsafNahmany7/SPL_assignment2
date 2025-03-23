@@ -7,11 +7,7 @@ import bgu.spl.mics.application.messages.DetectObjectsEvent;
 import bgu.spl.mics.application.messages.CrashedBroadcast;
 import bgu.spl.mics.application.messages.TerminatedBroadcast;
 import bgu.spl.mics.application.messages.TickBroadcast;
-import bgu.spl.mics.application.objects.Camera;
-import bgu.spl.mics.application.objects.StampedDetectedObjects;
-import bgu.spl.mics.application.objects.StatisticalFolder;
-import bgu.spl.mics.application.objects.FusionSlam;
-import bgu.spl.mics.application.objects.DetectedObject;
+import bgu.spl.mics.application.objects.*;
 
 
 import com.google.gson.Gson;
@@ -38,7 +34,6 @@ public class CameraService extends MicroService {
     private final String outputFilePath = "output.json";
     private final CountDownLatch latch;
     private StampedDetectedObjects LastFrame;
-
     /**
      * Constructor for CameraService.
      *
@@ -49,6 +44,7 @@ public class CameraService extends MicroService {
         this.camera = camera;
         this.latch = latch;
         LastFrame = null;
+
     }
 
     /**
@@ -74,6 +70,12 @@ public class CameraService extends MicroService {
 
 
             else {
+                if (isSystemErrorFlagRaised()) {
+                    System.out.println(getName() + " skipping tick processing due to system error");
+                    return; // Skip processing this tick
+                }
+
+
                 if (camera.getStatus() == Camera.status.UP) {
                     StampedDetectedObjects statisticObjects = camera.detectObjectsAtTime(tick.getCurrentTick());
                     if (statisticObjects != null) {
@@ -84,6 +86,7 @@ public class CameraService extends MicroService {
                             int validObjectCount = 0;
                             for (DetectedObject obj : statisticObjects.getDetectedObjects()) {
                                 if (!obj.getId().equals("ERROR")) {
+                                    System.out.println("GOOD OBJECT \uD83D\uDCAF \uD83D\uDCAF  "+obj.getId() + " at time:"+tick.getCurrentTick());
                                     validObjectCount++;
                                 }
                             }
@@ -133,7 +136,10 @@ public class CameraService extends MicroService {
                                 }
 // Now handle the ERROR if detected
                                 if (errorDetected) {
+                                    raiseSystemErrorFlag();
+                                    System.out.println( " \uD83D\uDCAF "+ "ERROR GETS PROCESSED at time: "+ tick.getCurrentTick() );
                                     handleSensorError(stampdetectedObjects); // Use the original object that contains the ERROR
+
                                 }
 // Remove the processed objects
                                 camera.removeStampedObject(stampdetectedObjects);

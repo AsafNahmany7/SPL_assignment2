@@ -5,6 +5,11 @@
         "id": 1,
         "frequency": 0,
         "camera_key": "camera1"
+      },
+      {
+        "id": 2,
+        "frequency": 0,
+        "camera_key": "camera2"
       }
     ],
     "camera_datas_path": "./camera_data.json"
@@ -20,6 +25,5 @@
   },
   "poseJsonFile": "./pose_data.json",
   "TickTime": 1,
-  "Duration": 6
+  "Duration": 30
 }
-

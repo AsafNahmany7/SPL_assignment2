@@ -62,6 +62,10 @@ public class PoseService extends MicroService {
         System.out.println("poseser initialize");
         // Subscribe to TickBroadcast
         subscribeBroadcast(TickBroadcast.class, tick -> {
+
+            if(isSystemErrorFlagRaised())
+                return;
+
             currentTick = tick.getCurrentTick();
             this.time=currentTick;
             List<Pose> poseList = gpsimu.getPoseList();

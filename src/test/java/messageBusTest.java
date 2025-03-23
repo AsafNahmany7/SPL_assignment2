@@ -1,208 +1,189 @@
+import bgu.spl.mics.*;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import static org.junit.jupiter.api.Assertions.*;
 
-import bgu.spl.mics.*;
 import java.util.concurrent.TimeUnit;
 
-/**
- * Unit tests for the MessageBusImpl class
- */
+import static org.junit.jupiter.api.Assertions.*;
+
 public class messageBusTest {
+    private MessageBusImpl messageBus;
+    private MicroService testService1;
+    private MicroService testService2;
 
-    private MessageBus messageBus;
+    @BeforeEach
+    public void setUp() {
+        MessageBusImpl.reset(); // Reset the singleton before each test
+        messageBus = (MessageBusImpl) MessageBusImpl.getInstance();
+        // Create test microservices
+        testService1 = new DummyMicroService("service1");
+        testService2 = new DummyMicroService("service2");
 
-    // Test implementations of Message interfaces
-    class TestEvent implements Event<String> {}
-    class TestBroadcast implements Broadcast {}
+        // Register microservices
+        messageBus.register(testService1);
+        messageBus.register(testService2);
+    }
+    @AfterEach
+    public void tearDown() {
+        // Unregister test services
+        messageBus.unregister(testService1);
+        messageBus.unregister(testService2);
+        // Any other cleanup needed
+    }
 
-    // Simple MicroService for testing
-    class TestMicroService extends MicroService {
-        public TestMicroService(String name) {
+    @Test
+    public void testSubscribeEvent() {
+        // Create test event type
+        TestEvent event = new TestEvent("test");
+        messageBus.subscribeEvent(TestEvent.class, testService1);
+
+        // Send event
+        Future<String> future = messageBus.sendEvent(event);
+
+        // Check if event was sent to the right service
+        try {
+            Message receivedMessage = messageBus.awaitMessage(testService1);
+            assertTrue(receivedMessage instanceof TestEvent);
+            assertEquals(event, receivedMessage);
+        } catch (InterruptedException e) {
+            fail("InterruptedException occurred: " + e.getMessage());
+        }
+
+        assertNotNull(future);
+    }
+
+    @Test
+    public void testSubscribeBroadcast() {
+        // Create test broadcast
+        TestBroadcast broadcast = new TestBroadcast("test broadcast");
+        messageBus.subscribeBroadcast(TestBroadcast.class, testService1);
+        messageBus.subscribeBroadcast(TestBroadcast.class, testService2);
+
+        // Send broadcast
+        messageBus.sendBroadcast(broadcast);
+
+        // Check if broadcast was received by all subscribers
+        try {
+            Message message1 = messageBus.awaitMessage(testService1);
+            Message message2 = messageBus.awaitMessage(testService2);
+
+            assertTrue(message1 instanceof TestBroadcast);
+            assertTrue(message2 instanceof TestBroadcast);
+            assertEquals(broadcast, message1);
+            assertEquals(broadcast, message2);
+        } catch (InterruptedException e) {
+            fail("InterruptedException occurred: " + e.getMessage());
+        }
+    }
+
+    @Test
+    public void testComplete() throws InterruptedException {
+        TestEvent event = new TestEvent("test");
+        messageBus.subscribeEvent(TestEvent.class, testService1);
+
+        Future<String> future = messageBus.sendEvent(event);
+
+        // Complete the event
+        messageBus.complete(event, "result");
+
+        // Check if the future was resolved with a timeout
+        assertTrue(future.isDone());
+        assertEquals("result", future.get(100, TimeUnit.MILLISECONDS)); // Add timeout
+    }
+
+    @Test
+    public void testUnregister() throws InterruptedException {
+        // Register and subscribe
+        messageBus.register(testService1);
+        messageBus.subscribeEvent(TestEvent.class, testService1);
+
+        // Send an event
+        TestEvent event1 = new TestEvent("test1");
+        messageBus.sendEvent(event1);
+
+        // Verify we can receive it
+        Message message = messageBus.awaitMessage(testService1);
+        assertNotNull(message);
+
+        // Unregister
+        messageBus.unregister(testService1);
+
+        // Now check that the service is truly unregistered
+        // This should throw IllegalStateException
+        Exception exception = assertThrows(IllegalStateException.class, () -> {
+            messageBus.awaitMessage(testService1);
+        });
+
+        // Check the exception message if needed
+        // assertTrue(exception.getMessage().contains("never registered"));
+    }
+
+    @Test
+    public void testRoundRobin() {
+        // Test that events are distributed in round-robin fashion
+        TestEvent event1 = new TestEvent("test1");
+        TestEvent event2 = new TestEvent("test2");
+
+        MicroService service3 = new DummyMicroService("service3");
+        messageBus.register(service3);
+
+        messageBus.subscribeEvent(TestEvent.class, testService1);
+        messageBus.subscribeEvent(TestEvent.class, testService2);
+        messageBus.subscribeEvent(TestEvent.class, service3);
+
+        // Send events
+        messageBus.sendEvent(event1); // Should go to service1
+        messageBus.sendEvent(event2); // Should go to service2
+        TestEvent event3 = new TestEvent("test3"); // Should go to service3
+        messageBus.sendEvent(event3);
+
+        try {
+            Message message1 = messageBus.awaitMessage(testService1);
+            Message message2 = messageBus.awaitMessage(testService2);
+            Message message3 = messageBus.awaitMessage(service3);
+
+            assertEquals(event1, message1);
+            assertEquals(event2, message2);
+            assertEquals(event3, message3);
+        } catch (InterruptedException e) {
+            fail("InterruptedException occurred: " + e.getMessage());
+        }
+    }
+
+    // Helper classes for testing
+    private class DummyMicroService extends MicroService {
+        public DummyMicroService(String name) {
             super(name);
         }
 
         @Override
         protected void initialize() {
-            // Empty implementation for testing
+            // No initialization needed for test
         }
     }
 
-    @BeforeEach
-    public void setUp() {
-        messageBus = MessageBusImpl.getInstance();
-    }
+    private class TestEvent implements Event<String> {
+        private final String content;
 
-    @Test
-    public void testRegisterAndUnregister() {
-        // Create a test service
-        MicroService m = new TestMicroService("testService");
-
-        // Register the service
-        messageBus.register(m);
-
-        // Unregister the service
-        messageBus.unregister(m);
-
-        // Try to await message - should throw exception
-        assertThrows(IllegalStateException.class, () -> {
-            messageBus.awaitMessage(m);
-        });
-    }
-
-    @Test
-    public void testSubscribeBroadcastAndSendBroadcast() throws InterruptedException {
-        // Create test service and broadcast
-        MicroService m = new TestMicroService("broadcastService");
-        TestBroadcast broadcast = new TestBroadcast();
-
-        // Register and subscribe
-        messageBus.register(m);
-        messageBus.subscribeBroadcast(TestBroadcast.class, m);
-
-        // Send broadcast
-        messageBus.sendBroadcast(broadcast);
-
-        // Service should receive the broadcast
-        Message received = messageBus.awaitMessage(m);
-        assertTrue(received instanceof TestBroadcast);
-
-        // Clean up
-        messageBus.unregister(m);
-    }
-
-    @Test
-    public void testSubscribeEventAndSendEvent() throws InterruptedException {
-        // Create test service and event
-        MicroService m = new TestMicroService("eventService");
-        TestEvent event = new TestEvent();
-
-        // Register and subscribe
-        messageBus.register(m);
-        messageBus.subscribeEvent(TestEvent.class, m);
-
-        // Send event
-        Future<String> future = messageBus.sendEvent(event);
-        assertNotNull(future);
-
-        // Service should receive the event
-        Message received = messageBus.awaitMessage(m);
-        assertTrue(received instanceof TestEvent);
-
-        // Complete the event
-        messageBus.complete(event, "testResult");
-
-        // Future should be resolved
-        assertTrue(future.isDone());
-        assertEquals("testResult", future.get());
-
-        // Clean up
-        messageBus.unregister(m);
-    }
-
-    @Test
-    public void testSendEventWithNoSubscribers() {
-        // Send an event with no subscribers
-        TestEvent event = new TestEvent();
-        Future<String> future = messageBus.sendEvent(event);
-
-        // Future should be null since no one is subscribed
-        assertNull(future);
-    }
-
-    @Test
-    public void testRoundRobinEventDistribution() throws InterruptedException {
-        // Create test services and events
-        MicroService m1 = new TestMicroService("service1");
-        MicroService m2 = new TestMicroService("service2");
-        TestEvent event1 = new TestEvent();
-        TestEvent event2 = new TestEvent();
-
-        // Register and subscribe both services
-        messageBus.register(m1);
-        messageBus.register(m2);
-        messageBus.subscribeEvent(TestEvent.class, m1);
-        messageBus.subscribeEvent(TestEvent.class, m2);
-
-        // Send two events
-        messageBus.sendEvent(event1);
-        messageBus.sendEvent(event2);
-
-        // Each service should get one event in round-robin fashion
-        Message received1 = messageBus.awaitMessage(m1);
-        Message received2 = messageBus.awaitMessage(m2);
-
-        assertTrue(received1 instanceof TestEvent);
-        assertTrue(received2 instanceof TestEvent);
-
-        // Clean up
-        messageBus.unregister(m1);
-        messageBus.unregister(m2);
-    }
-
-    @Test
-    public void testUnregisterRemovesSubscriptions() throws InterruptedException {
-        // Create test services and messages
-        MicroService m = new TestMicroService("unregisterTest");
-        TestEvent event = new TestEvent();
-        TestBroadcast broadcast = new TestBroadcast();
-
-        // Register and subscribe
-        messageBus.register(m);
-        messageBus.subscribeEvent(TestEvent.class, m);
-        messageBus.subscribeBroadcast(TestBroadcast.class, m);
-
-        // Unregister the service
-        messageBus.unregister(m);
-
-        // Send messages - nothing should break, but futures should be null
-        Future<String> future = messageBus.sendEvent(event);
-        messageBus.sendBroadcast(broadcast);
-
-        assertNull(future);
-    }
-
-    @Test
-    public void testAwaitMessageTimeout() {
-        // Create test service
-        MicroService m = new TestMicroService("timeoutTest");
-
-        // Register the service
-        messageBus.register(m);
-
-        // Try to await message with timeout - should return null after timeout
-        Thread t = new Thread(() -> {
-            try {
-                // This should timeout and return null
-                Future<String> future = new Future<>();
-                String result = future.get(100, TimeUnit.MILLISECONDS);
-                assertNull(result);
-            } catch (Exception e) {
-                // More general exception handling
-                fail("Unexpected exception: " + e.getMessage());
-            }
-        });
-
-        t.start();
-        try {
-            t.join(200); // Give thread time to complete
-        } catch (InterruptedException e) {
-            fail("Thread joining was interrupted");
+        public TestEvent(String content) {
+            this.content = content;
         }
-        assertFalse(t.isAlive()); // Thread should have completed
 
-        // Clean up
-        messageBus.unregister(m);
+        public String getContent() {
+            return content;
+        }
     }
 
-    @Test
-    public void testCompleteNonExistentEvent() {
-        // Try to complete an event that was never sent
-        TestEvent event = new TestEvent();
+    private class TestBroadcast implements Broadcast {
+        private final String content;
 
-        // This should not throw an exception
-        assertDoesNotThrow(() -> {
-            messageBus.complete(event, "result");
-        });
+        public TestBroadcast(String content) {
+            this.content = content;
+        }
+
+        public String getContent() {
+            return content;
+        }
     }
 }

@@ -1,6 +1,9 @@
 package bgu.spl.mics;
 
+
+
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * The MicroService is an abstract class that any micro-service in the system
@@ -28,6 +31,7 @@ public abstract class MicroService implements Runnable {
     protected boolean terminated = false;
     protected final String name;
     protected ConcurrentHashMap<Class<? extends Message>, Callback<?>> callbacksMap = new ConcurrentHashMap<>();
+    protected static final AtomicBoolean systemErrorFlag = new AtomicBoolean(false);
     /**
      * @param name the micro-service name (used mainly for debugging purposes -
      *             does not have to be unique)
@@ -181,6 +185,14 @@ public abstract class MicroService implements Runnable {
             }
         }
         System.out.println(this.getName() + " terminated - כלומר יצא מהלולאה של 'run' ");
+    }
+    public static void raiseSystemErrorFlag() {
+        systemErrorFlag.set(true);
+        System.out.println("System error flag raised - stopping all processing");
+    }
+
+    public static boolean isSystemErrorFlagRaised() {
+        return systemErrorFlag.get();
     }
 
 

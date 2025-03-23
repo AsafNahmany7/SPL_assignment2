@@ -43,6 +43,10 @@ public class LiDarService extends MicroService {
 
         //tick callback:
         subscribeBroadcast(TickBroadcast.class, (TickBroadcast tick) -> {
+
+            if(isSystemErrorFlagRaised())
+                return;
+
             int time = tick.getCurrentTick();
             this.time = time;
             lastTime = time;
@@ -123,6 +127,7 @@ public class LiDarService extends MicroService {
 
                 // Finally, handle any error after processing all valid objects
                 if (errorDetected) {
+                    raiseSystemErrorFlag();
                     handleSensorError(errorDescription);
                 }
             }

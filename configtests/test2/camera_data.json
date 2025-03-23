@@ -1,0 +1,40 @@
+{
+  "camera1":[
+    {
+      "time": 2,
+      "detectedObjects": [
+        {"id": "Wall_1", "description": "Wall"}
+      ]
+    },
+    {
+      "time": 4,
+      "detectedObjects": [
+        {"id": "Wall_3", "description": "Wall"}
+      ]
+    },
+    {
+      "time": 6,
+      "detectedObjects": [
+        {"id": "Wall_4", "description": "Wall"}
+      ]
+    },
+    {
+      "time": 8,
+      "detectedObjects": [
+        {"id": "Wall_5", "description": "Wall"}
+      ]
+    },
+    {
+      "time": 10,
+      "detectedObjects": [
+        {"id": "Wall_1", "description": "Wall"}
+      ]
+    },
+    {
+      "time": 12,
+      "detectedObjects": [
+        {"id": "Wall_3", "description": "Wall"}
+      ]
+    }
+  ]
+}

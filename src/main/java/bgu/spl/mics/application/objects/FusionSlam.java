@@ -21,7 +21,7 @@ public class FusionSlam {
     private final List<LandMark> landmarks;
     private final List<Pose> poses;
     private final List<TrackedObject> trackedObjectsQueue;
-    private final JsonObject outputData;
+    private  JsonObject outputData;
 
     private final Lock posesLock;
     private final Lock landmarksLock;
@@ -263,4 +263,14 @@ public class FusionSlam {
         statsJson.addProperty("numLandmarks", stats.getNumLandmarks());
         return statsJson;
     }
+
+    // Add this method to FusionSlam
+    public void reset() {
+        landmarks.clear();
+        poses.clear();
+        trackedObjectsQueue.clear();
+        outputData = new JsonObject(); // Create a fresh JsonObject
+    }
+
+
 }

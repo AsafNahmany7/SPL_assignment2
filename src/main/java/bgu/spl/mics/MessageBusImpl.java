@@ -30,6 +30,9 @@ public class MessageBusImpl implements MessageBus {
 	public static MessageBus getInstance() {
 		return MessageBus;
 	}
+	public static void reset() {
+		MessageBus = new MessageBusImpl(); // Create a fresh instance
+	}
 
 	@Override
 	public <T> void subscribeEvent(Class<? extends Event<T>> type, MicroService m) {
@@ -167,14 +170,11 @@ public class MessageBusImpl implements MessageBus {
 
 	@Override
 	public Message awaitMessage(MicroService m) throws InterruptedException {
-		while (ServicesMessageQueues.get(m) != null) {
-			try {
-				return ServicesMessageQueues.get(m).take();
-			} catch (InterruptedException e) {
-				Thread.currentThread().interrupt();
-			}
+		if (!ServicesMessageQueues.containsKey(m)) {
+			throw new IllegalStateException("MicroService never registered");
 		}
-		return null;
+
+		return ServicesMessageQueues.get(m).take();
 	}
 
 }
