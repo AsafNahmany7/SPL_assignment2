@@ -79,8 +79,16 @@ public class CameraService extends MicroService {
                     if (statisticObjects != null) {
                         if (statisticObjects.getDetectedObjects() != null && !statisticObjects.getDetectedObjects().isEmpty()) {
                             StatisticalFolder statFolder = StatisticalFolder.getInstance();
-                            int numbersOfObjects = statisticObjects.getDetectedObjects().size();
-                            statFolder.setNumDetectedObjects(numbersOfObjects);
+
+                            // Count only non-ERROR objects
+                            int validObjectCount = 0;
+                            for (DetectedObject obj : statisticObjects.getDetectedObjects()) {
+                                if (!obj.getId().equals("ERROR")) {
+                                    validObjectCount++;
+                                }
+                            }
+
+                            statFolder.setNumDetectedObjects(validObjectCount);
                         }
                     }
 
@@ -173,30 +181,43 @@ public class CameraService extends MicroService {
  *
  * @param detectedObjects The detected objects that include the error.
  */
-        private void handleSensorError(StampedDetectedObjects detectedObjects) {
-            System.err.println("Error detected in camera: " + camera.getId());
-            updateLastCamerasFrame();
+private void handleSensorError(StampedDetectedObjects detectedObjects) {
+    System.err.println("Error detected in camera: " + camera.getId());
+    updateLastCamerasFrame();
 
+    // Update FusionSlam with error details
+    FusionSlam fusionSlam = FusionSlam.getInstance();
 
-            // Update FusionSlam with error details
-            updateErrorLog(detectedObjects);
+    // Find the error description from the detected objects
+    String errorDescription = detectedObjects.getDetectedObjects().stream()
+            .filter(obj -> "ERROR".equals(obj.getId()))
+            .findFirst()
+            .map(DetectedObject::getDescription)
+            .orElse("Unknown error");
 
-            // Mark the camera as having an ERROR status
-            camera.setStatus(Camera.status.ERROR);
+    JsonObject errorDetails = new JsonObject();
+    errorDetails.addProperty("error", errorDescription);
+    errorDetails.addProperty("faultySensor", "Camera" + camera.getId());
+    errorDetails.addProperty("errorTime", detectedObjects.getTime());  // Add the error time
+    System.out.println("Camera error detected at time: " + detectedObjects.getTime());
 
-            // Wait for any pending futures to complete
+    JsonObject lastCamerasFrame = new JsonObject();
+    JsonObject cameraData = new JsonObject();
+    cameraData.addProperty("time", detectedObjects.getTime());
+    cameraData.add("detectedObjects", new Gson().toJsonTree(detectedObjects.getDetectedObjects()));
+    lastCamerasFrame.add("Camera" + camera.getId(), cameraData);
 
+    errorDetails.add("lastCamerasFrame", lastCamerasFrame);
 
-            // Mark this camera as done in the CamerasManager
+    fusionSlam.updateOutput("errorDetails", errorDetails);
 
-            System.err.println("Camera: " + camera.getId() + " sending CrashedBroadcast");
-            // Broadcast CrashedBroadcast to stop all services
+    // Mark the camera as having an ERROR status
+    camera.setStatus(Camera.status.ERROR);
 
-
-            // Terminate this service
-            terminate();
-            sendBroadcast(new CrashedBroadcast(camera.getKey()));
-        }
+    // Terminate this service
+    terminate();
+    sendBroadcast(new CrashedBroadcast(camera.getKey()));
+}
 
 /**
  * Updates the FusionSlam output with error details and the last frame of detected objects.

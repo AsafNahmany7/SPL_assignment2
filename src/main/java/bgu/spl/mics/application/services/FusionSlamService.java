@@ -70,7 +70,7 @@ public class FusionSlamService extends MicroService {
 
                 generateERROROutput();
                 terminate();
-                sendBroadcast(new TerminatedBroadcast(this.getName(), FusionSlam.class));
+                sendBroadcast(new TerminatedBroadcast(this.getName(), FusionSlamService.class));
 
         });
 
@@ -101,11 +101,11 @@ public class FusionSlamService extends MicroService {
             FusionSlam fusionSlam = FusionSlam.getInstance();
             String outputPath = "output.json";
 
-            // Get the statistics
-            StatisticalFolder stats = StatisticalFolder.getInstance();
-
             // Create the root JSON object
             JsonObject output = new JsonObject();
+            StatisticalFolder stats = StatisticalFolder.getInstance();
+
+            // Add statistics
             output.addProperty("systemRuntime", stats.getSystemRuntime());
             output.addProperty("numDetectedObjects", stats.getNumDetectedObjects());
             output.addProperty("numTrackedObjects", stats.getNumTrackedObjects());
@@ -154,18 +154,59 @@ public class FusionSlamService extends MicroService {
             String outputPath = "error_output.json";
             JsonObject output = new JsonObject();
 
-            output.add("",fusionSlam.getOutputData());//האם זה תקין ??
+            // Extract error details from fusionSlam data
+            JsonObject outputData = fusionSlam.getOutputData();
 
-            // Get the statistics
+            // Get the StatisticalFolder instance
             StatisticalFolder stats = StatisticalFolder.getInstance();
 
-            // Create the root JSON object
-            output.addProperty("systemRuntime", stats.getSystemRuntime());
-            output.addProperty("numDetectedObjects", stats.getNumDetectedObjects());
-            output.addProperty("numTrackedObjects", stats.getNumTrackedObjects());
-            output.addProperty("numLandmarks", stats.getNumLandmarks());
+            // Default to current runtime, but prefer error time if available
+            int errorTime = stats.getSystemRuntime();
 
-            // Add the landmarks
+            // Get error information from errorDetails
+            if (outputData.has("errorDetails")) {
+                JsonObject errorDetails = outputData.getAsJsonObject("errorDetails");
+
+                // Extract error time if available
+                if (errorDetails.has("errorTime")) {
+                    errorTime = errorDetails.get("errorTime").getAsInt();
+                }
+
+                // Add error message and faultySensor directly to the root
+                if (errorDetails.has("error")) {
+                    output.add("error", errorDetails.get("error"));
+                }
+                if (errorDetails.has("faultySensor")) {
+                    output.add("faultySensor", errorDetails.get("faultySensor"));
+                }
+
+                // Add camera frame if available
+                if (errorDetails.has("lastCamerasFrame")) {
+                    output.add("lastCamerasFrame", errorDetails.get("lastCamerasFrame"));
+                }
+            }
+
+            // Add LiDAR frames if available - note the field name change
+            if (outputData.has("lastLiDARFrame")) {
+                output.add("lastLiDarWorkerTrackersFrame", outputData.get("lastLiDARFrame"));
+            }
+
+            // Add poses if available
+            if (outputData.has("poses")) {
+                JsonObject posesObj = outputData.getAsJsonObject("poses");
+                if (posesObj.has("poses")) {
+                    output.add("poses", posesObj.get("poses"));
+                }
+            }
+
+            // Create statistics object
+            JsonObject statsJson = new JsonObject();
+            statsJson.addProperty("systemRuntime", errorTime);  // Use error time here
+            statsJson.addProperty("numDetectedObjects", stats.getNumDetectedObjects());
+            statsJson.addProperty("numTrackedObjects", stats.getNumTrackedObjects());
+            statsJson.addProperty("numLandmarks", stats.getNumLandmarks());
+
+            // Add landmarks to statistics object
             JsonObject landmarksObject = new JsonObject();
             for (LandMark landmark : fusionSlam.getLandmarks()) {
                 JsonObject landmarkJson = new JsonObject();
@@ -185,7 +226,11 @@ public class FusionSlamService extends MicroService {
                 landmarksObject.add(landmark.getId(), landmarkJson);
             }
 
-            output.add("landMarks", landmarksObject);
+            // Add landmarks to statistics
+            statsJson.add("landMarks", landmarksObject);
+
+            // Add statistics to output
+            output.add("statistics", statsJson);
 
             // Write to file
             try (FileWriter writer = new FileWriter(outputPath)) {
@@ -193,9 +238,9 @@ public class FusionSlamService extends MicroService {
                 gson.toJson(output, writer);
             }
 
-            System.out.println("Output file created: " + outputPath);
+            System.out.println("Error output file created: " + outputPath);
         } catch (Exception e) {
-            System.err.println("FusionSlamService: Error generating final output: " + e.getMessage());
+            System.err.println("FusionSlamService: Error generating error output: " + e.getMessage());
             e.printStackTrace();
         }
     }
