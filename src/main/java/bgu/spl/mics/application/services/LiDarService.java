@@ -128,7 +128,7 @@ public class LiDarService extends MicroService {
         subscribeBroadcast(TerminatedBroadcast.class, (TerminatedBroadcast broadcast) -> {
             if((broadcast.getServiceClass()!=null) && broadcast.getServiceClass().equals(TimeService.class)){
                 System.out.println(getName()+" recived time termination broadcast");
-                //updateLastLiDARFrame();
+                updateLastLiDARFrame();
                 terminate();
                 sendBroadcast(new TerminatedBroadcast(getName(), LiDarService.class));
             }
@@ -252,19 +252,18 @@ public class LiDarService extends MicroService {
         FusionSlam fusionSlam = FusionSlam.getInstance();
         JsonObject lastLiDARFrame = new JsonObject();
         JsonObject lidarData = new JsonObject();
+
         int LastFrameTime = tracker.getLastTrackedObjects().getLast().getTime();
+
         lidarData.addProperty("time", LastFrameTime);
         List<TrackedObject> lastsFrames = new ArrayList<>();
         for(TrackedObject last : tracker.getLastTrackedObjects()){
             if(last.getTime() == LastFrameTime){
                 lastsFrames.add(tracker.getLastTrackedObjects().removeLast());
-            }else{
-                break;
             }
         }
         lidarData.add("trackedObjects", new Gson().toJsonTree(lastsFrames));
         lastLiDARFrame.add("LiDAR" + tracker.getId(), lidarData);
-
         fusionSlam.updateOutput("lastLiDARFrame", lastLiDARFrame);
     }
 

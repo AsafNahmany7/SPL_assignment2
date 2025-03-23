@@ -101,6 +101,7 @@ public class CameraService extends MicroService {
                             // Separate valid objects from ERROR objects
                                 for (DetectedObject currentObj : stampdetectedObjects.getDetectedObjects()) {
                                     if (currentObj.getId().equals("ERROR")) {
+                                        System.err.println("הופהה התגלה error במצלמה: " + camera.getId());
                                         errorDetected = true;
                                     } else {
                                         validObjects.add(currentObj);
@@ -172,8 +173,9 @@ public class CameraService extends MicroService {
  * @param detectedObjects The detected objects that include the error.
  */
         private void handleSensorError(StampedDetectedObjects detectedObjects) {
-            updateLastCamerasFrame();
             System.err.println("Error detected in camera: " + camera.getId());
+            updateLastCamerasFrame();
+
 
             // Update FusionSlam with error details
             updateErrorLog(detectedObjects);
@@ -192,7 +194,7 @@ public class CameraService extends MicroService {
 
             // Terminate this service
             terminate();
-            sendBroadcast(new CrashedBroadcast(getName()));
+            sendBroadcast(new CrashedBroadcast(camera.getKey()));
         }
 
 /**
