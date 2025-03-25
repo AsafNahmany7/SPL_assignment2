@@ -8,6 +8,8 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
@@ -22,7 +24,9 @@ public class FusionSlam {
     private final List<Pose> poses;
     private final List<TrackedObject> trackedObjectsQueue;
     private  JsonObject outputData;
-
+    private AtomicInteger crashTime=new AtomicInteger(0);
+    private AtomicBoolean isCrashed = new AtomicBoolean(false);
+    private AtomicInteger numofCrashes =  new AtomicInteger(0) ;
     private final Lock posesLock;
     private final Lock landmarksLock;
     private final Lock trackedObjectsLock;
@@ -44,8 +48,33 @@ public class FusionSlam {
         this.outputLock = new ReentrantLock();
     }
 
+
     public static FusionSlam getInstance() {
         return FusionSlamHolder.INSTANCE;
+    }
+
+    public AtomicBoolean getIsCrashed() {
+
+        return isCrashed;
+    }
+
+    public AtomicInteger getCrashTime() {
+        return crashTime;
+    }
+    public AtomicInteger getNumofCrashes() {
+        return numofCrashes;
+    }
+    public void setCrashTime(int x){
+        if (numofCrashes.get()==0) {
+            crashTime.set(x);
+        }
+    }
+    public void setNumofCrashes(int x){
+        numofCrashes.set(x);
+    }
+
+    public void setIsCrashed(boolean isCrashed) {
+        this.isCrashed.set(isCrashed);
     }
 
     public JsonObject getOutputData(){

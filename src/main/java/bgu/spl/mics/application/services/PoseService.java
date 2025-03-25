@@ -109,7 +109,7 @@ public class PoseService extends MicroService {
             System.out.println("PoseService received crash notification from: " + crashed.getServiceName());
             updateOutputWithPoses(); // עדכון המידע ב-FusionSlam
             terminate();
-            sendBroadcast(new TerminatedBroadcast(getName(), PoseService.class));
+            sendBroadcast(new TerminatedBroadcast(getName(), PoseService.class,this));
 
         });
 
@@ -119,14 +119,14 @@ public class PoseService extends MicroService {
                System.out.println("PoseService received terminated notification from: " + terminated.getServiceName());
                updateOutputWithPoses();
                terminate();
-               sendBroadcast(new TerminatedBroadcast(this.getName(), PoseService.class));
+               sendBroadcast(new TerminatedBroadcast(this.getName(), PoseService.class,this));
 
            }
 
            if(terminated.getServiceClass()!=null && terminated.getServiceClass()== FusionSlamService.class) {
                updateOutputWithPoses();
                terminate();
-               sendBroadcast(new TerminatedBroadcast(this.getName(), PoseService.class));
+               sendBroadcast(new TerminatedBroadcast(this.getName(), PoseService.class,this));
 
            }
         });

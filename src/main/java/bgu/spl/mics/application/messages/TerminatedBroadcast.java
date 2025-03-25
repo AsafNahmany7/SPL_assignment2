@@ -1,6 +1,7 @@
 package bgu.spl.mics.application.messages;
 
 import bgu.spl.mics.Broadcast;
+import bgu.spl.mics.MicroService;
 
 /**
  * Represents a broadcast message sent by sensors or services
@@ -9,10 +10,15 @@ import bgu.spl.mics.Broadcast;
 public class TerminatedBroadcast implements Broadcast {
     private final String serviceName;
     private final Class<?> serviceClass;
-
-    public TerminatedBroadcast(String serviceName, Class<?> serviceClass) {
+    private final MicroService microService;
+    public TerminatedBroadcast(String serviceName, Class<?> serviceClass, MicroService microService) {
         this.serviceName = serviceName;
         this.serviceClass = serviceClass;
+        this.microService = microService;
+    }
+
+    public MicroService getMicroService() {
+            return microService;
     }
 
     public String getServiceName() {

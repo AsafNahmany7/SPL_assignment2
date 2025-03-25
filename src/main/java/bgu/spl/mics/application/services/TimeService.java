@@ -59,7 +59,7 @@ public class TimeService extends MicroService {
                 // Final broadcast
                 sendBroadcast(new TickBroadcast(currentTick, duration)); // Last tick
                 System.out.println("finished all the ticks, sending termination broadcast");
-                sendBroadcast(new TerminatedBroadcast("TimeService", TimeService.class));
+                sendBroadcast(new TerminatedBroadcast("TimeService", TimeService.class,this));
                 System.out.println("sent terminate broadcast from timeservice");
 
                 // DON'T terminate here - wait for FusionSlamService's broadcast instead

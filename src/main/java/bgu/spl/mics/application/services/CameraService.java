@@ -34,6 +34,8 @@ public class CameraService extends MicroService {
     private final String outputFilePath = "output.json";
     private final CountDownLatch latch;
     private StampedDetectedObjects LastFrame;
+    private int lastProcessedTick;
+    private List<StampedDetectedObjects> gotDetected;
     /**
      * Constructor for CameraService.
      *
@@ -44,6 +46,8 @@ public class CameraService extends MicroService {
         this.camera = camera;
         this.latch = latch;
         LastFrame = null;
+        lastProcessedTick = 0;
+        gotDetected = new ArrayList<>();
 
     }
 
@@ -60,12 +64,13 @@ public class CameraService extends MicroService {
         subscribeBroadcast(TickBroadcast.class, tick -> {
 
 
+
             if (camera.isEmpty()) {
                 System.err.println("No frames available for Camera" + camera.getId() + " to update.");
                 updateLastCamerasFrame();
                 camera.setStatus(Camera.status.DOWN);
                 terminate();
-                sendBroadcast(new TerminatedBroadcast(this.getName(),CameraService.class));
+                sendBroadcast(new TerminatedBroadcast(this.getName(),CameraService.class,this));
             }
 
 
@@ -77,6 +82,7 @@ public class CameraService extends MicroService {
 
 
                 if (camera.getStatus() == Camera.status.UP) {
+                    lastProcessedTick = tick.getCurrentTick();
                     StampedDetectedObjects statisticObjects = camera.detectObjectsAtTime(tick.getCurrentTick());
                     if (statisticObjects != null) {
                         if (statisticObjects.getDetectedObjects() != null && !statisticObjects.getDetectedObjects().isEmpty()) {
@@ -88,15 +94,18 @@ public class CameraService extends MicroService {
                                 if (!obj.getId().equals("ERROR")) {
                                     System.out.println("GOOD OBJECT \uD83D\uDCAF \uD83D\uDCAF  "+obj.getId() + " at time:"+tick.getCurrentTick());
                                     validObjectCount++;
-                                }
-                            }
 
-                            statFolder.setNumDetectedObjects(validObjectCount);
+                                }
+
+                            }
                         }
+
                     }
 
                     int currentTick = tick.getCurrentTick();
                     this.time=currentTick;
+                    System.out.println(this.time  +   "  \uD83C\uDF00\uD83C\uDF00\uD83C\uDF00\uD83C\uDF00"  );
+
 
                     if (camera.getFrequency() < currentTick) {
 
@@ -115,6 +124,19 @@ public class CameraService extends MicroService {
                                     if (currentObj.getId().equals("ERROR")) {
                                         System.err.println("הופהה התגלה error במצלמה: " + camera.getId());
                                         errorDetected = true;
+
+                                        if (errorDetected) {
+                                            raiseSystemErrorFlag();
+                                            FusionSlam fs = FusionSlam.getInstance();
+                                            fs.setIsCrashed(true);
+                                            fs.setCrashTime(time);
+                                            fs.setNumofCrashes(1);
+                                            System.out.println( " \uD83D\uDCAF "+ "ERROR GETS PROCESSED at time: "+ tick.getCurrentTick() );
+                                            handleSensorError(stampdetectedObjects); // Use the original object that contains the ERROR
+                                            return;
+                                        }
+
+
                                     } else {
                                         validObjects.add(currentObj);
                                     }
@@ -122,11 +144,15 @@ public class CameraService extends MicroService {
 
                      // Process valid objects first if there are any
                                 if (!validObjects.isEmpty()) {
+                                    StampedDetectedObjects validForGot = new StampedDetectedObjects(stampdetectedObjects.getTime());
                                     // Create a new StampedDetectedObjects with only valid objects
                                     StampedDetectedObjects validStampedObjects = new StampedDetectedObjects(stampdetectedObjects.getTime());
                                     for (DetectedObject obj : validObjects) {
                                         validStampedObjects.addDetectedObject(obj);
+                                        validForGot.addDetectedObject(obj);
                                     }
+
+                                    gotDetected.add(validForGot);
 
                                     // Send event for valid objects
                                     sendEvent(new DetectObjectsEvent(validStampedObjects, camera.getFrequency()));
@@ -135,12 +161,7 @@ public class CameraService extends MicroService {
 
                                 }
 // Now handle the ERROR if detected
-                                if (errorDetected) {
-                                    raiseSystemErrorFlag();
-                                    System.out.println( " \uD83D\uDCAF "+ "ERROR GETS PROCESSED at time: "+ tick.getCurrentTick() );
-                                    handleSensorError(stampdetectedObjects); // Use the original object that contains the ERROR
 
-                                }
 // Remove the processed objects
                                 camera.removeStampedObject(stampdetectedObjects);
                             }
@@ -163,7 +184,7 @@ public class CameraService extends MicroService {
 
             // Terminate
             terminate();
-            sendBroadcast(new TerminatedBroadcast(this.getName(),CameraService.class));
+            sendBroadcast(new TerminatedBroadcast(this.getName(),CameraService.class,this));
         });
 
 // TerminatedBroadcast handler
@@ -175,7 +196,7 @@ public class CameraService extends MicroService {
                 updateLastCamerasFrame();
 
                 terminate();
-                sendBroadcast(new TerminatedBroadcast(this.getName(),CameraService.class));
+                sendBroadcast(new TerminatedBroadcast(this.getName(),CameraService.class,this));
             }
         });
         latch.countDown();
@@ -219,10 +240,11 @@ private void handleSensorError(StampedDetectedObjects detectedObjects) {
 
     // Mark the camera as having an ERROR status
     camera.setStatus(Camera.status.ERROR);
-
     // Terminate this service
     terminate();
-    sendBroadcast(new CrashedBroadcast(camera.getKey()));
+
+    sendBroadcast(new CrashedBroadcast(camera.getKey(),this.time, CameraService.class,this));
+
 }
 
 /**
@@ -280,4 +302,12 @@ private void handleSensorError(StampedDetectedObjects detectedObjects) {
 
             fusionSlam.updateOutput("lastCamerasFrame", lastCamerasFrame);
         }
- }
+
+    public List<StampedDetectedObjects> getGotDetected() {
+
+            return gotDetected;
+    }
+    public int getLastProcessedTick(){
+            return lastProcessedTick;
+    }
+}

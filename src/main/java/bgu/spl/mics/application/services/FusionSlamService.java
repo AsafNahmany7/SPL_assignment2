@@ -12,6 +12,8 @@ import java.io.FileWriter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * FusionSlamService integrates data from multiple sensors to build and update
@@ -23,6 +25,7 @@ public class FusionSlamService extends MicroService {
     private boolean LiDarsFinished;
     private boolean PoseServiceDone;
     private List<MicroService> listofMicroServices;
+    private StatisticalFolder stats = StatisticalFolder.getInstance();
 
     /**
      * Constructor for FusionSlamService.
@@ -34,6 +37,8 @@ public class FusionSlamService extends MicroService {
         this.LiDarsFinished = false;
         this.PoseServiceDone = false;
         listofMicroServices = new ArrayList<>();
+
+
     }
 
     @Override
@@ -56,10 +61,26 @@ public class FusionSlamService extends MicroService {
         // Subscribe to TerminatedBroadcast
         subscribeBroadcast(TerminatedBroadcast.class, terminated -> {
             System.out.println("fusionslamser got terminate from ----------------"+ terminated.getServiceName());
+            if(terminated.getServiceClass().equals(CameraService.class)) {
+                ProcessCameraStats((CameraService) terminated.getMicroService());
+            }
+            if((terminated.getServiceClass()!=null) && terminated.getServiceClass().equals(LiDarService.class)) {
+                System.out.println("☢\uFE0F☢\uFE0F☢\uFE0F☢\uFE0F☢\uFE0F☢\uFE0F☢\uFE0F☢\uFE0F☢\uFE0F☢\uFE0F☢\uFE0F");
+                ProcessLidarStats((LiDarService) terminated.getMicroService());
+            }
+
+
            if(ServicesDown()){
-               sendBroadcast(new TerminatedBroadcast(getName(), FusionSlamService.class));
-               generateFinalOutput();
+               MicroService m = listofMicroServices.get(0);
+               if(isSystemErrorFlagRaised()){
+                   generateERROROutput();
+               }
+               else{
+                   generateFinalOutput();
+               }
+
                terminate();
+               sendBroadcast(new TerminatedBroadcast(getName(), FusionSlamService.class,this));
            }
 
         });
@@ -68,9 +89,30 @@ public class FusionSlamService extends MicroService {
         subscribeBroadcast(CrashedBroadcast.class, crashed -> {
             System.out.println("FusionSlamService received crash notification from: " + crashed.getServiceName());
 
+            System.out.println("Fusion recived the crash with crash time\uD83C\uDF00\uD83C\uDF00\uD83C\uDF00\uD83C\uDF00\uD83C\uDF00 "+ fusionSlam.getCrashTime().get());
+            System.out.println("☢\uFE0F☢\uFE0F☢\uFE0F☢\uFE0F☢\uFE0F☢\uFE0F☢\uFE0F☢\uFE0F☢\uFE0F☢\uFE0F☢\uFE0F" + crashed.getServiceClass().getName()+" " +CameraService.class.getName());
+
+            if((crashed.getServiceClass()!=null) && crashed.getServiceClass().equals(CameraService.class)) {
+                System.out.println("☢\uFE0F☢\uFE0F☢\uFE0F☢\uFE0F☢\uFE0F☢\uFE0F☢\uFE0F☢\uFE0F☢\uFE0F☢\uFE0F☢\uFE0F");
+                ProcessCameraStats((CameraService) crashed.getMicroService());
+            }
+
+            if((crashed.getServiceClass()!=null) && crashed.getServiceClass().equals(LiDarService.class)) {
+                System.out.println("☢\uFE0F☢\uFE0F☢\uFE0F☢\uFE0F☢\uFE0F☢\uFE0F☢\uFE0F☢\uFE0F☢\uFE0F☢\uFE0F☢\uFE0F");
+                ProcessLidarStats((LiDarService) crashed.getMicroService());
+            }
+
+
+
+
+
+
+            if(ServicesDown()){
                 generateERROROutput();
                 terminate();
-                sendBroadcast(new TerminatedBroadcast(this.getName(), FusionSlamService.class));
+                sendBroadcast(new TerminatedBroadcast(this.getName(), FusionSlamService.class,this));
+            }
+
 
         });
 
@@ -244,4 +286,95 @@ public class FusionSlamService extends MicroService {
             e.printStackTrace();
         }
     }
+
+    private void ProcessCameraStats(CameraService cm) {
+        List<StampedDetectedObjects> list = cm.getGotDetected();
+        int totalDetectedObjects = 0;
+        int timeLimit;
+        MicroService m = listofMicroServices.get(0);
+
+        // Determine which time limit to use
+        if (isSystemErrorFlagRaised()) {
+            // If crash occurred, use crashTime
+            timeLimit = fusionSlam.getCrashTime().get();
+            System.out.println("Processing camera stats with crash time limit: " + timeLimit);
+        } else {
+            // If no crash, use the last processed tick of the camera
+            timeLimit = cm.getLastProcessedTick();
+            System.out.println("Processing camera stats with normal time limit: " + timeLimit);
+        }
+
+        System.out.println("\uD83D\uDE08\uD83D\uDE08\uD83D\uDE08\uD83D\uDE08\uD83D\uDE08\uD83D\uDE08Camera " + cm.getCamera().getId() + " has processed " + list.size() + " frames");
+        for (StampedDetectedObjects sdo : list) {
+            System.out.println("  Frame at time " + sdo.getTime() + " has " +
+                    sdo.getDetectedObjects().size() + " objects");
+            for (DetectedObject obj : sdo.getDetectedObjects()) {
+                System.out.println("    Object: " + obj.getId());
+            }
+        }
+        // Count all detections up to the appropriate time limit
+        for (StampedDetectedObjects stampedDetectedObjects : list) {
+            if (stampedDetectedObjects.getTime() <= timeLimit) {
+                totalDetectedObjects += stampedDetectedObjects.getDetectedObjects().size();
+                System.out.println("Added " + stampedDetectedObjects.getDetectedObjects().size() +
+                        " objects from time " + stampedDetectedObjects.getTime());
+            }
+        }
+
+        // Update the statistical folder with the total count
+        stats.setNumDetectedObjects(totalDetectedObjects);
+
+        System.out.println("Updated statistics: Added " + totalDetectedObjects +
+                " detected objects from camera " + cm.getCamera().getId());
+    }
+
+
+
+
+
+
+    private void ProcessLidarStats(LiDarService ls) {
+        List<StampedTrackedObject> list = ls.getGotTracked();
+        int totalDetectedObjects = 0;
+        int timeLimit;
+
+        // Determine which time limit to use
+        if (isSystemErrorFlagRaised()) {
+            // If crash occurred, use crashTime
+            timeLimit = fusionSlam.getCrashTime().get();
+            System.out.println("Processing lidar stats with crash time limit: " + timeLimit);
+        } else {
+            // If no crash, use the last processed tick of the camera
+            timeLimit = ls.getLastProcessedTick();
+            System.out.println("Processing lidar stats with normal time limit: " + timeLimit);
+        }
+
+
+
+        // Print all tracked objects per frame
+        System.out.println("\n🔍🔍🔍🔍🔍🔍 LIDAR " + ls.getName() + " has processed " + list.size() + " frames");
+        for (StampedTrackedObject frame : list) {
+            System.out.println("  Frame at time " + frame.getStamp() + " has " +
+                    frame.getTrackedObjects().size() + " tracked objects:");
+            for (TrackedObject obj : frame.getTrackedObjects()) {
+                System.out.println("    Tracked object: " + obj.getId() +
+                        " (" + obj.getDescription() + ")");
+            }
+        }
+
+        // Count all detections up to the appropriate time limit
+        for (StampedTrackedObject stampedTrackedObject : list) {
+            if (stampedTrackedObject.getStamp() <= timeLimit) {
+                totalDetectedObjects += stampedTrackedObject.getTrackedObjects().size();
+                System.out.println("Added " + stampedTrackedObject.getTrackedObjects().size() +
+                        " objects from time " + stampedTrackedObject.getStamp());
+            }
+        }
+
+        // Update the statistical folder with the total count
+        stats.setNumTrackedObjects(totalDetectedObjects);
+
+
+    }
+
 }

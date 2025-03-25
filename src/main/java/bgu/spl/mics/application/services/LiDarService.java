@@ -26,7 +26,9 @@ public class LiDarService extends MicroService {
     private final CountDownLatch latch;
     private int lastTime;
     private StampedDetectedObjects LastFrame;
-
+    private int Tick;
+    private List<StampedTrackedObject> gotTracked;
+    private boolean CamerasTerminatedFlag = false;
 
     public LiDarService(LiDarWorkerTracker tracker, CountDownLatch latch,int numOfCameras) {
         super("LidarWorker " + tracker.getId());
@@ -35,6 +37,8 @@ public class LiDarService extends MicroService {
         this.latch = latch;
         this.numOfCameras = numOfCameras;
         this.cameraTerminations = 0;
+        Tick = 0;
+        gotTracked = new ArrayList<>();
     }
 
     @Override
@@ -44,8 +48,23 @@ public class LiDarService extends MicroService {
         //tick callback:
         subscribeBroadcast(TickBroadcast.class, (TickBroadcast tick) -> {
 
+            Tick=tick.getCurrentTick();
             if(isSystemErrorFlagRaised())
                 return;
+
+
+            //scenario of all the cameras terminated and no more objects to track
+            if (CamerasTerminatedFlag && DetectedObjectsbyTime.isEmpty()){
+                tracker.setStatus(LiDarWorkerTracker.status.DOWN);
+                //updateLastLiDARFrame();
+                System.out.println(getName() + " received TerminatedBroadcast at " + System.currentTimeMillis());
+                this.terminate();
+                System.out.println(getName() + " finished termination logic at " + System.currentTimeMillis());
+                sendBroadcast(new TerminatedBroadcast(getName(), LiDarService.class));
+            }
+
+
+
 
             int time = tick.getCurrentTick();
             this.time = time;
@@ -59,6 +78,12 @@ public class LiDarService extends MicroService {
                 if (cloudPoints.getId().equals("ERROR") && cloudPoints.getTime() == time) {
                     System.out.println("Detected ERROR object in LiDAR database at time " + time);
                     lastTime = time; // Set the time for error reporting
+                    raiseSystemErrorFlag();
+                    FusionSlam fs = FusionSlam.getInstance();
+                    fs.setIsCrashed(true);
+                    fs.setCrashTime(time);
+                    fs.setNumofCrashes(1);
+                    System.out.println( " \uD83D\uDCAF "+ "ERROR GETS PROCESSED at time: "+ tick.getCurrentTick() );
                     handleSensorError("LiDAR Malfunction detected in database");
                     return; // Stop processing if error found
                 }
@@ -75,6 +100,8 @@ public class LiDarService extends MicroService {
 
             if (toProcess != null) {
                 List<TrackedObject> trackedObjects = new ArrayList<>();
+                StampedTrackedObject forStats = new StampedTrackedObject(Tick);
+
                 boolean errorDetected = false;
                 String errorDescription = "";
 
@@ -84,13 +111,6 @@ public class LiDarService extends MicroService {
                         break;
                     }
                     String id = currentDetectedObject.getId();
-
-                    if (id.equals("ERROR")) {
-                        errorDetected = true;
-                        errorDescription = currentDetectedObject.getDescription();
-                        tracker.setStatus(LiDarWorkerTracker.status.ERROR);
-                        continue; // Skip this object but continue processing others
-                    }
 
                     StampedCloudPoints correspondingCloudPoints = database.searchStampedClouds(detectionTime, id);
 
@@ -109,13 +129,15 @@ public class LiDarService extends MicroService {
                     System.out.println("-----ניצור TrackedObject-----");
                     TrackedObject newTrackedObject = new TrackedObject(id, toProcess.getTime(), currentDetectedObject.getDescription(), cloudpoints);
                     trackedObjects.add(newTrackedObject);
+                    forStats.addTrackedObject(newTrackedObject);
                     tracker.addTrackedObject(newTrackedObject); // Save to last tracked objects for error reporting
                 }
 
                 // Process valid tracked objects
                 if (!trackedObjects.isEmpty()) {
-                    StatisticalFolder.getInstance().setNumTrackedObjects(trackedObjects.size());
 
+
+                    gotTracked.add(forStats);
                     TrackedObjectsEvent output = new TrackedObjectsEvent(trackedObjects);
                     sendEvent(output);
 
@@ -168,18 +190,23 @@ public class LiDarService extends MicroService {
                 System.out.println(getName()+" recived time termination broadcast");
                 updateLastLiDARFrame();
                 terminate();
-                sendBroadcast(new TerminatedBroadcast(getName(), LiDarService.class));
+                sendBroadcast(new TerminatedBroadcast(getName(), LiDarService.class,this));
             }
 
             else if((broadcast.getServiceClass()!=null) && broadcast.getServiceClass().equals(CameraService.class)){
                 System.out.println(getName()+" recived camera termination broadcast");
                 cameraTerminations++;
                 if(cameraTerminations == numOfCameras){
-                    processTheRestObjects();
-                    tracker.setStatus(LiDarWorkerTracker.status.DOWN);
-                    //updateLastLiDARFrame();
-                    terminate();
-                    sendBroadcast(new TerminatedBroadcast(getName(), LiDarService.class));
+                    CamerasTerminatedFlag = true;
+
+                    if(DetectedObjectsbyTime.isEmpty()){
+                        tracker.setStatus(LiDarWorkerTracker.status.DOWN);
+                        //updateLastLiDARFrame();
+                        terminate();
+                        sendBroadcast(new TerminatedBroadcast(getName(), LiDarService.class,this));
+
+                    }
+
 
                 }
 
@@ -192,7 +219,7 @@ public class LiDarService extends MicroService {
             updateLastLiDARFrame();
             tracker.setStatus(LiDarWorkerTracker.status.DOWN);
             terminate();
-            sendBroadcast(new TerminatedBroadcast(getName(), LiDarService.class));
+            sendBroadcast(new TerminatedBroadcast(getName(), LiDarService.class,this));
 
         });
 
@@ -272,7 +299,7 @@ public class LiDarService extends MicroService {
         // Broadcast CrashedBroadcast to stop all services
 
         System.out.println("Lidar sending crash");
-        sendBroadcast(new CrashedBroadcast(getName()));
+        sendBroadcast(new CrashedBroadcast(getName(),Tick,LiDarService.class,this));
 
         // Terminate this service
         terminate();
@@ -360,4 +387,12 @@ public class LiDarService extends MicroService {
             return;
         }
     }
+    public List<StampedTrackedObject> getGotTracked() {
+
+        return gotTracked;
+    }
+    public int getLastProcessedTick(){
+        return Tick;
+    }
+
 }

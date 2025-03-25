@@ -20,6 +20,6 @@
   },
   "poseJsonFile": "./pose_data.json",
   "TickTime": 1,
-  "Duration": 6
+  "Duration": 30
 }
 
