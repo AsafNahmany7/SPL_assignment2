@@ -78,6 +78,9 @@ public class Camera {
         stampdetectedObjects.remove(objectToRemove);
     }
 
+    public int stampedSize(){
+        return stampdetectedObjects.size();
+    }
 
 
 

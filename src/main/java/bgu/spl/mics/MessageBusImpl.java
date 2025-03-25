@@ -81,6 +81,7 @@ public class MessageBusImpl implements MessageBus {
 				BlockingQueue<Message> messageQueue = ServicesMessageQueues.get(m);
 				if (messageQueue != null) {
 					if(b.getClass() == TerminatedBroadcast.class) {
+					//	System.out.println(Thread.currentThread().getName() + " XXXXXXXX sending TerminateBroadcast to: XXXXXXX  " + m.getName());
 					}
 					messageQueue.put(b);
 					for (Message message : messageQueue) {

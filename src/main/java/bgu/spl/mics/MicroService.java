@@ -105,6 +105,7 @@ public abstract class MicroService implements Runnable {
      * 	       			null in case no micro-service has subscribed to {@code e.getClass()}.
      */
     protected final <T> Future<T> sendEvent(Event<T> e) {
+        //System.out.println(getName() + " is sending event " + e.getClass().getSimpleName() + " at " + System.currentTimeMillis());
         return messageBus.sendEvent(e);
     }
 
@@ -115,6 +116,7 @@ public abstract class MicroService implements Runnable {
      * @param b The broadcast message to send
      */
     protected final void sendBroadcast(Broadcast b) {
+        //System.out.println(getName() + " is sending broadcast " + b.getClass().getSimpleName() + " at " + System.currentTimeMillis());
         messageBus.sendBroadcast(b);
     }
 
@@ -142,7 +144,7 @@ public abstract class MicroService implements Runnable {
      * message.
      */
     protected final void terminate() {
-        System.out.println(this.getName() + " terminated\uD83D\uDE80 at time : "+time);
+        System.out.println(this.getName() + " terminated\uD83D\uDE80 at beginning time : "+time);
         this.terminated = true;
         messageBus.unregister(this);
         // מבצע אינטרפט לכל ת'רד של המיקרו-שירות כדי לשחרר את `awaitMessage()`
@@ -172,8 +174,9 @@ public abstract class MicroService implements Runnable {
         initialize();
         while (!terminated) {
             try {
+                System.out.println(getName() + " >>> entering awaitMessage()");
                 Message message = messageBus.awaitMessage(this);
-
+                System.out.println(getName() + " <<< received message of type: " + message.getClass().getSimpleName());
 
                 Callback<Message> callback = (Callback<Message>) callbacksMap.get(message.getClass());
                 if (callback != null) {

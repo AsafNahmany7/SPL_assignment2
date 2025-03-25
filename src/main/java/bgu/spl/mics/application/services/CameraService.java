@@ -195,7 +195,9 @@ public class CameraService extends MicroService {
                 camera.setStatus(Camera.status.DOWN);
                 updateLastCamerasFrame();
 
-                terminate();
+            //    System.out.println(getName() + " received TerminatedBroadcast at " + System.currentTimeMillis());
+                this.terminate();
+            //    System.out.println(getName() + " finished termination logic at " + System.currentTimeMillis());
                 sendBroadcast(new TerminatedBroadcast(this.getName(),CameraService.class,this));
             }
         });

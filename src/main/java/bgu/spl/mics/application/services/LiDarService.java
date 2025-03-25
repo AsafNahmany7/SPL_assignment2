@@ -52,20 +52,6 @@ public class LiDarService extends MicroService {
             if(isSystemErrorFlagRaised())
                 return;
 
-
-            //scenario of all the cameras terminated and no more objects to track
-            if (CamerasTerminatedFlag && DetectedObjectsbyTime.isEmpty()){
-                tracker.setStatus(LiDarWorkerTracker.status.DOWN);
-                //updateLastLiDARFrame();
-                System.out.println(getName() + " received TerminatedBroadcast at " + System.currentTimeMillis());
-                this.terminate();
-                System.out.println(getName() + " finished termination logic at " + System.currentTimeMillis());
-                sendBroadcast(new TerminatedBroadcast(getName(), LiDarService.class));
-            }
-
-
-
-
             int time = tick.getCurrentTick();
             this.time = time;
             lastTime = time;
@@ -153,6 +139,13 @@ public class LiDarService extends MicroService {
                     handleSensorError(errorDescription);
                 }
             }
+
+            if(CamerasTerminatedFlag && DetectedObjectsbyTime.isEmpty()){
+                tracker.setStatus(LiDarWorkerTracker.status.DOWN);
+                //updateLastLiDARFrame();
+                terminate();
+                sendBroadcast(new TerminatedBroadcast(getName(), LiDarService.class,this));
+            }
         });
 
         //DetectedObjectEvent callback
@@ -198,18 +191,7 @@ public class LiDarService extends MicroService {
                 cameraTerminations++;
                 if(cameraTerminations == numOfCameras){
                     CamerasTerminatedFlag = true;
-
-                    if(DetectedObjectsbyTime.isEmpty()){
-                        tracker.setStatus(LiDarWorkerTracker.status.DOWN);
-                        //updateLastLiDARFrame();
-                        terminate();
-                        sendBroadcast(new TerminatedBroadcast(getName(), LiDarService.class,this));
-
-                    }
-
-
                 }
-
             }
         });
 
