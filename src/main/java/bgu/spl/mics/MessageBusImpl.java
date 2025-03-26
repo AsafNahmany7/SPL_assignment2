@@ -46,6 +46,7 @@ public class MessageBusImpl implements MessageBus {
 	@Override
 	public void subscribeBroadcast(Class<? extends Broadcast> type, MicroService m) {
 		BrodcastSubscribersQueues.putIfAbsent(type,new LinkedBlockingQueue<>());
+		//System.out.println(Thread.currentThread().getName() + "recived broadcat:" + type.getName() + "from: ");
 
 		if(!BrodcastSubscribersQueues.get(type).contains(m)) {
 			BrodcastSubscribersQueues.get(type).add(m);
@@ -81,7 +82,7 @@ public class MessageBusImpl implements MessageBus {
 				BlockingQueue<Message> messageQueue = ServicesMessageQueues.get(m);
 				if (messageQueue != null) {
 					if(b.getClass() == TerminatedBroadcast.class) {
-					//	System.out.println(Thread.currentThread().getName() + " XXXXXXXX sending TerminateBroadcast to: XXXXXXX  " + m.getName());
+					System.out.println("☕☕☕☕☕☕☕☕☕☕☕☕☕☕TerminatedBroadcast sent by " + m.getName());
 					}
 					messageQueue.put(b);
 					for (Message message : messageQueue) {

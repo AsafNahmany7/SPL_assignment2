@@ -2,6 +2,8 @@ package bgu.spl.mics;
 
 
 
+import bgu.spl.mics.application.messages.TerminatedBroadcast;
+
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -116,7 +118,7 @@ public abstract class MicroService implements Runnable {
      * @param b The broadcast message to send
      */
     protected final void sendBroadcast(Broadcast b) {
-        //System.out.println(getName() + " is sending broadcast " + b.getClass().getSimpleName() + " at " + System.currentTimeMillis());
+        System.out.println(getName() + " is sending broadcast " + b.getClass().getSimpleName() + " at " + System.currentTimeMillis());
         messageBus.sendBroadcast(b);
     }
 
@@ -176,8 +178,16 @@ public abstract class MicroService implements Runnable {
             try {
                 System.out.println(getName() + " >>> entering awaitMessage()");
                 Message message = messageBus.awaitMessage(this);
+
+
                 System.out.println(getName() + " <<< received message of type: " + message.getClass().getSimpleName());
 
+                if (message instanceof TerminatedBroadcast) {
+                    TerminatedBroadcast terminatedMsg = (TerminatedBroadcast) message;
+                    System.out.println(getName() + " <<< 🌈🌈🌈🌈🌈 received TerminatedBroadcast from " +
+                            terminatedMsg.getServiceName() + " of class " +
+                            (terminatedMsg.getServiceClass() != null ? terminatedMsg.getServiceClass().getSimpleName() : "null"));
+                }
                 Callback<Message> callback = (Callback<Message>) callbacksMap.get(message.getClass());
                 if (callback != null) {
                     callback.call(message);

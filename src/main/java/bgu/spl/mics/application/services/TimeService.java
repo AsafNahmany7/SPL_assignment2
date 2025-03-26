@@ -54,7 +54,7 @@ public class TimeService extends MicroService {
                     System.out.println("⏰sending tick: " + currentTick);
                     sendBroadcast(new TickBroadcast(currentTick, duration));
                     statsFolder.incrementSystemRuntime();
-                    Thread.sleep(tickTime);
+                    Thread.sleep(tickTime*1000);
                 }
                 // Final broadcast
                 sendBroadcast(new TickBroadcast(currentTick, duration)); // Last tick

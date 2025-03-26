@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * CameraService is responsible for processing data from the camera and
@@ -36,6 +37,8 @@ public class CameraService extends MicroService {
     private StampedDetectedObjects LastFrame;
     private int lastProcessedTick;
     private List<StampedDetectedObjects> gotDetected;
+    private StatisticalFolder stats;
+    private boolean errorFound = false;
     /**
      * Constructor for CameraService.
      *
@@ -48,7 +51,8 @@ public class CameraService extends MicroService {
         LastFrame = null;
         lastProcessedTick = 0;
         gotDetected = new ArrayList<>();
-
+        stats = StatisticalFolder.getInstance();
+        errorFound=false;
     }
 
     /**
@@ -59,9 +63,11 @@ public class CameraService extends MicroService {
     @Override
     protected void initialize() {
         System.out.println("cameraser initialize");
+        stats.registerCameraService(this);
 
         // הרשמה לטיק
         subscribeBroadcast(TickBroadcast.class, tick -> {
+            AtomicInteger detections = new AtomicInteger(0);
 
 
 
@@ -71,104 +77,30 @@ public class CameraService extends MicroService {
                 camera.setStatus(Camera.status.DOWN);
                 terminate();
                 sendBroadcast(new TerminatedBroadcast(this.getName(),CameraService.class,this));
+                return;
             }
 
 
-            else {
-                if (isSystemErrorFlagRaised()) {
-                    System.out.println(getName() + " skipping tick processing due to system error");
-                    return; // Skip processing this tick
-                }
 
 
-                if (camera.getStatus() == Camera.status.UP) {
-                    lastProcessedTick = tick.getCurrentTick();
-                    StampedDetectedObjects statisticObjects = camera.detectObjectsAtTime(tick.getCurrentTick());
-                    if (statisticObjects != null) {
-                        if (statisticObjects.getDetectedObjects() != null && !statisticObjects.getDetectedObjects().isEmpty()) {
-                            StatisticalFolder statFolder = StatisticalFolder.getInstance();
+            time = tick.getCurrentTick();
+            updateStats();
 
-                            // Count only non-ERROR objects
-                            int validObjectCount = 0;
-                            for (DetectedObject obj : statisticObjects.getDetectedObjects()) {
-                                if (!obj.getId().equals("ERROR")) {
-                                    System.out.println("GOOD OBJECT \uD83D\uDCAF \uD83D\uDCAF  "+obj.getId() + " at time:"+tick.getCurrentTick());
-                                    validObjectCount++;
-
-                                }
-
-                            }
-                        }
-
-                    }
-
-                    int currentTick = tick.getCurrentTick();
-                    this.time=currentTick;
-                    System.out.println(this.time  +   "  \uD83C\uDF00\uD83C\uDF00\uD83C\uDF00\uD83C\uDF00"  );
-
-
-                    if (camera.getFrequency() < currentTick) {
-
-                        StampedDetectedObjects stampdetectedObjects = camera.detectObjectsAtTime(currentTick - camera.getFrequency());
-
-                        if (stampdetectedObjects != null) {
-
-                            if (stampdetectedObjects.getDetectedObjects() != null && !stampdetectedObjects.getDetectedObjects().isEmpty()) {
-                                LastFrame = stampdetectedObjects;
-                                // Get all non-ERROR objects
-                                List<DetectedObject> validObjects = new ArrayList<>();
-                                Boolean errorDetected = false;
-
-                            // Separate valid objects from ERROR objects
-                                for (DetectedObject currentObj : stampdetectedObjects.getDetectedObjects()) {
-                                    if (currentObj.getId().equals("ERROR")) {
-                                        System.err.println("הופהה התגלה error במצלמה: " + camera.getId());
-                                        errorDetected = true;
-
-                                        if (errorDetected) {
-                                            raiseSystemErrorFlag();
-                                            FusionSlam fs = FusionSlam.getInstance();
-                                            fs.setIsCrashed(true);
-                                            fs.setCrashTime(time);
-                                            fs.setNumofCrashes(1);
-                                            System.out.println( " \uD83D\uDCAF "+ "ERROR GETS PROCESSED at time: "+ tick.getCurrentTick() );
-                                            handleSensorError(stampdetectedObjects); // Use the original object that contains the ERROR
-                                            return;
-                                        }
-
-
-                                    } else {
-                                        validObjects.add(currentObj);
-                                    }
-                                }
-
-                     // Process valid objects first if there are any
-                                if (!validObjects.isEmpty()) {
-                                    StampedDetectedObjects validForGot = new StampedDetectedObjects(stampdetectedObjects.getTime());
-                                    // Create a new StampedDetectedObjects with only valid objects
-                                    StampedDetectedObjects validStampedObjects = new StampedDetectedObjects(stampdetectedObjects.getTime());
-                                    for (DetectedObject obj : validObjects) {
-                                        validStampedObjects.addDetectedObject(obj);
-                                        validForGot.addDetectedObject(obj);
-                                    }
-
-                                    gotDetected.add(validForGot);
-
-                                    // Send event for valid objects
-                                    sendEvent(new DetectObjectsEvent(validStampedObjects, camera.getFrequency()));
-
-                                    // Add future to camera queue
-
-                                }
-// Now handle the ERROR if detected
-
-// Remove the processed objects
-                                camera.removeStampedObject(stampdetectedObjects);
-                            }
-                            }
-                        }
+            StampedDetectedObjects toSend = camera.detectObjectsAtTime(time-camera.getFrequency());
+            if(toSend != null) {
+                for(DetectedObject currentDO : toSend.getDetectedObjects()) {
+                    if(currentDO.getId().equals("ERROR")) {
+                        errorFound = true;
+                        handleSensorError(toSend);
                     }
                 }
+                if(!errorFound) {
+                    camera.getDetectedObjects().remove(toSend);
+                    sendEvent(new DetectObjectsEvent(toSend, camera.getFrequency()));
+                }
+            }
+
+
 
         });
 
@@ -240,8 +172,13 @@ private void handleSensorError(StampedDetectedObjects detectedObjects) {
 
     fusionSlam.updateOutput("errorDetails", errorDetails);
 
+
+
+
     // Mark the camera as having an ERROR status
     camera.setStatus(Camera.status.ERROR);
+    raiseSystemErrorFlag();
+    fusionSlam.setCrashTime(time);
     // Terminate this service
     terminate();
 
@@ -284,6 +221,26 @@ private void handleSensorError(StampedDetectedObjects detectedObjects) {
             return camera;
     }
 
+    private void updateStats(){
+        boolean statsError = false;
+        StampedDetectedObjects detectedNow = camera.detectObjectsAtTime(time);
+        if(detectedNow == null){
+            DetectStat DS =new DetectStat(time,0);
+            stats.updateCurrentDetectedObjects(this,DS);
+            return;
+        }
+
+        for(DetectedObject current : detectedNow.getDetectedObjects()) {
+            if(current.getId().equals("ERROR")){
+                return;
+            }
+        }
+
+        DetectStat DS =new DetectStat(time,detectedNow.getDetectedObjects().size());
+        stats.updateCurrentDetectedObjects(this,DS);
+    }
+
+
     /**
  * Updates the last frame of the camera in the FusionSlam output.
  */
@@ -305,11 +262,5 @@ private void handleSensorError(StampedDetectedObjects detectedObjects) {
             fusionSlam.updateOutput("lastCamerasFrame", lastCamerasFrame);
         }
 
-    public List<StampedDetectedObjects> getGotDetected() {
 
-            return gotDetected;
-    }
-    public int getLastProcessedTick(){
-            return lastProcessedTick;
-    }
 }

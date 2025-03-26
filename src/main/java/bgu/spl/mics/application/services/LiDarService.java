@@ -8,8 +8,10 @@ import bgu.spl.mics.application.objects.*;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 
+import java.sql.SQLOutput;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 
@@ -22,175 +24,113 @@ public class LiDarService extends MicroService {
     int cameraTerminations;
     int numOfCameras;
     private LiDarWorkerTracker tracker;
-    private List<StampedDetectedObjects> DetectedObjectsbyTime;
+    private List<StampedTrackedObjects> trackedObjects;
     private final CountDownLatch latch;
     private int lastTime;
-    private StampedDetectedObjects LastFrame;
-    private int Tick;
-    private List<StampedTrackedObject> gotTracked;
     private boolean CamerasTerminatedFlag = false;
+    private StatisticalFolder stats;
 
     public LiDarService(LiDarWorkerTracker tracker, CountDownLatch latch,int numOfCameras) {
         super("LidarWorker " + tracker.getId());
         this.tracker = tracker;
-        DetectedObjectsbyTime = new ArrayList<>();
         this.latch = latch;
         this.numOfCameras = numOfCameras;
         this.cameraTerminations = 0;
-        Tick = 0;
-        gotTracked = new ArrayList<>();
+        this.trackedObjects = new ArrayList<>();
+        this.stats=StatisticalFolder.getInstance();
     }
 
     @Override
     protected void initialize() {
         System.out.println("lidarser initialize");
+        stats.registerLidarService(this);
 
         //tick callback:
         subscribeBroadcast(TickBroadcast.class, (TickBroadcast tick) -> {
 
-            Tick=tick.getCurrentTick();
             if(isSystemErrorFlagRaised())
                 return;
 
-            int time = tick.getCurrentTick();
-            this.time = time;
-            lastTime = time;
-            LiDarDataBase database = LiDarDataBase.getInstance();
-            StampedDetectedObjects toProcess = null;
-            int detectionTime = 0;
-
-            // Check if the current time matches an ERROR in the database
-            for (StampedCloudPoints cloudPoints : database.getStampedCloud()) {
-                if (cloudPoints.getId().equals("ERROR") && cloudPoints.getTime() == time) {
-                    System.out.println("Detected ERROR object in LiDAR database at time " + time);
-                    lastTime = time; // Set the time for error reporting
-                    raiseSystemErrorFlag();
-                    FusionSlam fs = FusionSlam.getInstance();
-                    fs.setIsCrashed(true);
-                    fs.setCrashTime(time);
-                    fs.setNumofCrashes(1);
-                    System.out.println( " \uD83D\uDCAF "+ "ERROR GETS PROCESSED at time: "+ tick.getCurrentTick() );
-                    handleSensorError("LiDAR Malfunction detected in database");
-                    return; // Stop processing if error found
-                }
-            }
-
-            for (StampedDetectedObjects currentTimeDetectedObjects : DetectedObjectsbyTime) {
-                detectionTime = currentTimeDetectedObjects.getTime();
-
-                if (detectionTime + tracker.getFrequencey() <= time) {
-                    toProcess = currentTimeDetectedObjects;
-                } else {
-                }
-            }
-
-            if (toProcess != null) {
-                List<TrackedObject> trackedObjects = new ArrayList<>();
-                StampedTrackedObject forStats = new StampedTrackedObject(Tick);
-
-                boolean errorDetected = false;
-                String errorDescription = "";
-
-                // First pass: Process all non-ERROR objects
-                for (DetectedObject currentDetectedObject : toProcess.getDetectedObjects()) {
-                    if(currentDetectedObject == null){
-                        break;
-                    }
-                    String id = currentDetectedObject.getId();
-
-                    StampedCloudPoints correspondingCloudPoints = database.searchStampedClouds(detectionTime, id);
-
-                    // Add null check here
-                    if (correspondingCloudPoints == null) {
-                        System.err.println("No cloud points found for object: " + id + " at time: " + detectionTime);
-                        continue;
-                    }
-
-                    List<CloudPoint> cloudpoints = new ArrayList<>();
-
-                    for (List<Double> coordinates : correspondingCloudPoints.getCloudPoints()) {
-                        cloudpoints.add(new CloudPoint(coordinates.get(0), coordinates.get(1)));
-                    }
-
-                    System.out.println("-----ניצור TrackedObject-----");
-                    TrackedObject newTrackedObject = new TrackedObject(id, toProcess.getTime(), currentDetectedObject.getDescription(), cloudpoints);
-                    trackedObjects.add(newTrackedObject);
-                    forStats.addTrackedObject(newTrackedObject);
-                    tracker.addTrackedObject(newTrackedObject); // Save to last tracked objects for error reporting
-                }
-
-                // Process valid tracked objects
-                if (!trackedObjects.isEmpty()) {
+            time = tick.getCurrentTick();
 
 
-                    gotTracked.add(forStats);
-                    TrackedObjectsEvent output = new TrackedObjectsEvent(trackedObjects);
-                    sendEvent(output);
-
-                    // Add the future to the LidarsManager
-                }
-
-                // Remove the processed object after handling all contents
-                DetectedObjectsbyTime.remove(toProcess);
-
-                // Finally, handle any error after processing all valid objects
-                if (errorDetected) {
-                    raiseSystemErrorFlag();
-                    handleSensorError(errorDescription);
-                }
-            }
-
-            if(CamerasTerminatedFlag && DetectedObjectsbyTime.isEmpty()){
+            //scenario of all the cameras terminated and no more objects to track
+            if (CamerasTerminatedFlag && trackedObjects.isEmpty()){
                 tracker.setStatus(LiDarWorkerTracker.status.DOWN);
                 //updateLastLiDARFrame();
-                terminate();
+                System.out.println(getName() + " received TerminatedBroadcast at \uD83E\uDDE0\uD83E\uDDE0\uD83E\uDDE0\uD83E\uDDE0\uD83E\uDDE0\uD83E\uDDE0 " + System.currentTimeMillis());
+                this.terminate();
+                System.out.println(getName() + " finished termination logic at \uD83E\uDDE0\uD83D\uDCDA\uD83E\uDD13\uD83D\uDCDA\uD83E\uDD13" + System.currentTimeMillis());
                 sendBroadcast(new TerminatedBroadcast(getName(), LiDarService.class,this));
             }
+
+            processAndSendTrackedEvent();
+
         });
 
         //DetectedObjectEvent callback
         subscribeEvent(DetectObjectsEvent.class, (DetectObjectsEvent objEvent) -> {
             StampedDetectedObjects stampedDetectedObjects = objEvent.getDetectedObjects();
+            LiDarDataBase dataBase = LiDarDataBase.getInstance();
+            StampedTrackedObjects STO = new StampedTrackedObjects(stampedDetectedObjects.getTime());
 
-            // Check for ERROR objects before adding to the processing queue
-            boolean hasError = false;
-            String errorDescription = "";
 
-            for (DetectedObject dodo : stampedDetectedObjects.getDetectedObjects()) {
-                System.out.println("popa popa lidar" + tracker.getId() + " recieved " + dodo.getId() + " at time : " + stampedDetectedObjects.getTime());
 
-                if (dodo.getId().equals("ERROR")) {
-                    hasError = true;
-                    errorDescription = dodo.getDescription();
-                    // Set the time for error reporting
-                    lastTime = stampedDetectedObjects.getTime();
+            boolean errorFound = false;
+            for(DetectedObject detectedObject: stampedDetectedObjects.getDetectedObjects()){
+
+                StampedCloudPoints currentCP = dataBase.searchStampedClouds(stampedDetectedObjects.getTime(),detectedObject.getId());
+
+                if(currentCP.getId().equals("ERROR"))
+                    errorFound=true;
+
+
+
+                List<CloudPoint> cloudPoints = new ArrayList<>();
+                for(List<Double> coordinates : currentCP.getCloudPoints()){
+                    cloudPoints.add(new CloudPoint(coordinates.get(0),coordinates.get(1)));
                 }
+                TrackedObject TO = new TrackedObject(currentCP.getId(), time, detectedObject.getDescription(),cloudPoints);
+                STO.addTrackedObject(TO);
             }
+            trackedObjects.add(STO);
 
-            // If we found an ERROR object, handle it immediately
-            if (hasError) {
-                handleSensorError(errorDescription);
-                return; // Don't add this to the queue
-            }
+            if(!errorFound)
+                updateStats(STO);
 
-            // Add to processing queue if no errors
-            DetectedObjectsbyTime.add(stampedDetectedObjects);
+
+            //special case freq ==0
+            if(tracker.getFrequencey()==0)
+                processAndSendTrackedEvent();
+
         });
 
         // TerminatedBroadcast handler
         subscribeBroadcast(TerminatedBroadcast.class, (TerminatedBroadcast broadcast) -> {
             if((broadcast.getServiceClass()!=null) && broadcast.getServiceClass().equals(TimeService.class)){
-                System.out.println(getName()+" recived time termination broadcast");
+                System.out.println(getName()+" recived time termination broadcast⚽⚽⚽⚽⚽⚽⚽⚽⚽⚽⚽⚽⚽⚽⚽");
                 updateLastLiDARFrame();
                 terminate();
                 sendBroadcast(new TerminatedBroadcast(getName(), LiDarService.class,this));
             }
 
             else if((broadcast.getServiceClass()!=null) && broadcast.getServiceClass().equals(CameraService.class)){
-                System.out.println(getName()+" recived camera termination broadcast");
+                System.out.println(getName()+" recived camera termination broadcast⚽⚽⚽⚽⚽⚽⚽⚽⚽⚽⚽");
                 cameraTerminations++;
+
+
                 if(cameraTerminations == numOfCameras){
                     CamerasTerminatedFlag = true;
+
+                    if(trackedObjects.isEmpty()){
+                        tracker.setStatus(LiDarWorkerTracker.status.DOWN);
+                        //updateLastLiDARFrame();
+                        System.out.println("⚽⚽⚽⚽⚽⚽⚽⚽⚽⚽⚽ terminate1 ");
+                        terminate();
+                        sendBroadcast(new TerminatedBroadcast(getName(), LiDarService.class,this));
+                        System.out.println("⚽⚽⚽⚽⚽⚽⚽⚽⚽⚽⚽⚽ after terminate 1");
+
+                    }
                 }
             }
         });
@@ -200,6 +140,7 @@ public class LiDarService extends MicroService {
             System.out.println("lidarser received crash notification from: " + broadcast.getServiceName());
             updateLastLiDARFrame();
             tracker.setStatus(LiDarWorkerTracker.status.DOWN);
+
             terminate();
             sendBroadcast(new TerminatedBroadcast(getName(), LiDarService.class,this));
 
@@ -210,46 +151,9 @@ public class LiDarService extends MicroService {
         System.out.println("lidarser End initialized ]]]]]]]]]]");
     }
 
-    private void processDetectedObjects(StampedDetectedObjects detectedObjects, int currentTime) {
-        int detectionTime = detectedObjects.getTime();
-        LiDarDataBase database = LiDarDataBase.getInstance();
-        List<TrackedObject> trackedObjects = new ArrayList<>();
-
-        for (DetectedObject currentDetectedObject : detectedObjects.getDetectedObjects()) {
-            String id = currentDetectedObject.getId();
-
-            if (id.equals("ERROR")) {
-                handleSensorError(currentDetectedObject.getDescription());
-                return;
-            }
-
-            StampedCloudPoints correspondingCloudPoints = database.searchStampedClouds(detectionTime, id);
-
-            List<CloudPoint> cloudpoints = new ArrayList<>();
-            for (List<Double> coordinates : correspondingCloudPoints.getCloudPoints()) {
-                cloudpoints.add(new CloudPoint(coordinates.get(0), coordinates.get(1)));
-            }
-
-            TrackedObject newTrackedObject = new TrackedObject(id, detectionTime, currentDetectedObject.getDescription(), cloudpoints);
-            trackedObjects.add(newTrackedObject);
-            tracker.addTrackedObject(newTrackedObject);
-        }
-
-        if (!trackedObjects.isEmpty()) {
-            TrackedObjectsEvent event = new TrackedObjectsEvent(trackedObjects);
-            sendEvent(event);
 
 
-
-            // Update statistics
-            StatisticalFolder.getInstance().setNumTrackedObjects(trackedObjects.size());
-        }
-
-        // Remove processed objects
-        DetectedObjectsbyTime.remove(detectedObjects);
-    }
-
-    private void handleSensorError(String errorDescription) {
+    private void handleSensorError() {
         System.err.println("Error detected in LiDAR:\uD83D\uDC36\uD83D\uDC36 " + tracker.getId());
 
         updateLastLiDARFrame();
@@ -257,7 +161,7 @@ public class LiDarService extends MicroService {
         FusionSlam fusionSlam = FusionSlam.getInstance();
 
         JsonObject errorDetails = new JsonObject();
-        errorDetails.addProperty("error", errorDescription);
+        errorDetails.addProperty("error", "");
         errorDetails.addProperty("faultySensor", "LiDAR" + tracker.getId());
         errorDetails.addProperty("errorTime", lastTime);  // Add the error time
         System.out.println("LiDAR error detected at time: " + lastTime);
@@ -280,11 +184,14 @@ public class LiDarService extends MicroService {
         System.err.println("LiDAR: " + tracker.getId() + " sending CrashedBroadcast");
         // Broadcast CrashedBroadcast to stop all services
 
-        System.out.println("Lidar sending crash");
-        sendBroadcast(new CrashedBroadcast(getName(),Tick,LiDarService.class,this));
+        fusionSlam.setCrashTime(time);
+        raiseSystemErrorFlag();
+        terminate();
+        System.out.println("Lidar sending crash⚽");
+        sendBroadcast(new CrashedBroadcast(getName(),time,LiDarService.class,this));
 
         // Terminate this service
-        terminate();
+
     }
 
 
@@ -313,68 +220,49 @@ public class LiDarService extends MicroService {
         fusionSlam.updateOutput("lastLiDARFrame", lastLiDARFrame);
     }
 
-    private void processTheRestObjects (){
-        LiDarDataBase database = LiDarDataBase.getInstance();
-        int detectionTime = 0;
+    private void updateStats(StampedTrackedObjects STO){
+        System.out.println("Adding tracks stats: time=" + time + ",\uD83D\uDEF8\uD83D\uDEF8\uD83D\uDEF8\uD83D\uDEF8\uD83D\uDEF8\uD83D\uDEF8 count=" + STO.getTrackedObjectsObjects().size());
+        TrackStat TS = new TrackStat(time,STO.getTrackedObjectsObjects().size());
+        System.out.println("Adding tracks stats with track count\uD83D\uDE4C\uD83D\uDE4C\uD83D\uDE4C\uD83D\uDE4C\uD83D\uDE4C :"+ TS.getNumOfTracks());
+        stats.updateCurrentTrackedObjects(this,TS);
 
-        for (StampedDetectedObjects currentTimeDetectedObjects : DetectedObjectsbyTime) {
-            detectionTime = currentTimeDetectedObjects.getTime();
-            List<TrackedObject> trackedObjects = new ArrayList<>();
-            boolean errorDetected = false;
-            String errorDescription = "";
+    }
 
-            // First pass: Process all non-ERROR objects
-            for (DetectedObject currentDetectedObject : currentTimeDetectedObjects.getDetectedObjects()) {
-                String id = currentDetectedObject.getId();
+    private void processAndSendTrackedEvent(){
+        List<StampedTrackedObjects> toRemove = new ArrayList<>();
+        List<TrackedObject> validObjects = new ArrayList<>();
 
-                if (id.equals("ERROR")) {
-                    errorDetected = true;
-                    errorDescription = currentDetectedObject.getDescription();
-                    continue; // Skip this object but continue processing others
+        for(StampedTrackedObjects STO : trackedObjects) {
+            if(STO.getTime() == time - tracker.getFrequencey()) {
+                for(TrackedObject TO : STO.getTrackedObjectsObjects()) {
+                    if(TO.getId().equals("ERROR")) {
+                        handleSensorError();
+                        return;
+                    }
                 }
-
-                StampedCloudPoints correspondingCloudPoints = database.searchStampedClouds(detectionTime, id);
-                List<CloudPoint> cloudpoints = new ArrayList<>();
-
-                for (List<Double> coordinates : correspondingCloudPoints.getCloudPoints()) {
-                    cloudpoints.add(new CloudPoint(coordinates.get(0), coordinates.get(1)));
-                }
-
-                System.out.println("-----ניצור TrackedObject-----");
-                TrackedObject newTrackedObject = new TrackedObject(id, currentTimeDetectedObjects.getTime(), currentDetectedObject.getDescription(), cloudpoints);
-                trackedObjects.add(newTrackedObject);
-                tracker.addTrackedObject(newTrackedObject); // Save to last tracked objects for error reporting
-            }
-
-            // Process valid tracked objects
-            if (!trackedObjects.isEmpty()) {
-                StatisticalFolder.getInstance().setNumTrackedObjects(trackedObjects.size());
-
-                TrackedObjectsEvent output = new TrackedObjectsEvent(trackedObjects);
-                sendEvent(output);
-
-                // Add the future to the LidarsManager
-
-            }
-            // Remove the processed object after handling all contents
-            DetectedObjectsbyTime.remove(currentTimeDetectedObjects);
-
-            // Finally, handle any error after processing all valid objects
-            if (errorDetected) {
-                handleSensorError(errorDescription);
+                validObjects.addAll(STO.getTrackedObjectsObjects());
+                toRemove.add(STO);
             }
         }
-        if (DetectedObjectsbyTime.isEmpty()) {
-            System.err.println("No frames available for Lidar" + tracker.getId() + " to update.");
-            return;
+
+        // Remove processed objects
+        trackedObjects.removeAll(toRemove);
+
+        // Send event only if there are objects to track
+        if(!validObjects.isEmpty()) {
+            sendEvent(new TrackedObjectsEvent(validObjects));
+        }
+
+
+
+
+
+        // Send event only if there are objects to track
+        if(!validObjects.isEmpty()) {
+            sendEvent(new TrackedObjectsEvent(validObjects));
         }
     }
-    public List<StampedTrackedObject> getGotTracked() {
 
-        return gotTracked;
-    }
-    public int getLastProcessedTick(){
-        return Tick;
-    }
+
 
 }
