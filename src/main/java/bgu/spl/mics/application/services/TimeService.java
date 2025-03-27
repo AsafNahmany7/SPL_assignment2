@@ -48,7 +48,7 @@ public class TimeService extends MicroService {
             try {
                 StatisticalFolder statsFolder = StatisticalFolder.getInstance();
                 System.out.println("בדיקה -t.s." + currentTick);
-                while (currentTick < duration && !timerThread.isInterrupted()) {
+                while (currentTick < duration-1 && !timerThread.isInterrupted()) {
                     currentTick++;
                     this.time=currentTick;
                     System.out.println("⏰sending tick: " + currentTick);
@@ -56,8 +56,8 @@ public class TimeService extends MicroService {
                     statsFolder.incrementSystemRuntime();
                     Thread.sleep(tickTime*1000);
                 }
-                // Final broadcast
-                sendBroadcast(new TickBroadcast(currentTick, duration)); // Last tick
+
+                statsFolder.incrementSystemRuntime();
                 System.out.println("finished all the ticks, sending termination broadcast");
                 sendBroadcast(new TerminatedBroadcast("TimeService", TimeService.class,this));
                 System.out.println("sent terminate broadcast from timeservice");
