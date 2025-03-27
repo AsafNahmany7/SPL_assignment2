@@ -72,14 +72,12 @@ public class LiDarService extends MicroService {
         subscribeEvent(DetectObjectsEvent.class, (DetectObjectsEvent objEvent) -> {
             StampedDetectedObjects stampedDetectedObjects = objEvent.getDetectedObjects();
             LiDarDataBase dataBase = LiDarDataBase.getInstance();
-            StampedTrackedObjects STO = new StampedTrackedObjects(stampedDetectedObjects.getTime());
-
-
+            int detectionTime = stampedDetectedObjects.getTime();
+            StampedTrackedObjects STO = new StampedTrackedObjects(detectionTime);
 
             boolean errorFound = false;
             for(DetectedObject detectedObject: stampedDetectedObjects.getDetectedObjects()){
-
-                StampedCloudPoints currentCP = dataBase.searchStampedClouds(stampedDetectedObjects.getTime(),detectedObject.getId());
+                StampedCloudPoints currentCP = dataBase.searchStampedClouds(detectionTime,detectedObject.getId());
 
                 if(currentCP.getId().equals("ERROR"))
                     errorFound=true;
@@ -90,7 +88,7 @@ public class LiDarService extends MicroService {
                 for(List<Double> coordinates : currentCP.getCloudPoints()){
                     cloudPoints.add(new CloudPoint(coordinates.get(0),coordinates.get(1)));
                 }
-                TrackedObject TO = new TrackedObject(currentCP.getId(), time, detectedObject.getDescription(),cloudPoints);
+                TrackedObject TO = new TrackedObject(currentCP.getId(), detectionTime, detectedObject.getDescription(),cloudPoints);
                 STO.addTrackedObject(TO);
             }
             trackedObjects.add(STO);
@@ -153,7 +151,7 @@ public class LiDarService extends MicroService {
 
 
 
-    private void handleSensorError() {
+    private void handleSensorError(int detTime) {
         System.err.println("Error detected in LiDAR:\uD83D\uDC36\uD83D\uDC36 " + tracker.getId());
 
         updateLastLiDARFrame();
@@ -184,11 +182,12 @@ public class LiDarService extends MicroService {
         System.err.println("LiDAR: " + tracker.getId() + " sending CrashedBroadcast");
         // Broadcast CrashedBroadcast to stop all services
 
-        fusionSlam.setCrashTime(time);
+        FusionSlam fs = FusionSlam.getInstance();
+        fs.crashTime.compareAndSet(-1,detTime);
         raiseSystemErrorFlag();
         terminate();
         System.out.println("Lidar sending crash⚽");
-        sendBroadcast(new CrashedBroadcast(getName(),time,LiDarService.class,this));
+        sendBroadcast(new CrashedBroadcast(getName(),detTime,LiDarService.class,this));
 
         // Terminate this service
 
@@ -233,12 +232,17 @@ public class LiDarService extends MicroService {
         List<TrackedObject> validObjects = new ArrayList<>();
 
         for(StampedTrackedObjects STO : trackedObjects) {
-            if(STO.getTime() == time - tracker.getFrequencey()) {
+            if(STO.getTime() + tracker.getFrequencey() <= time) {
                 for(TrackedObject TO : STO.getTrackedObjectsObjects()) {
                     if(TO.getId().equals("ERROR")) {
-                        handleSensorError();
+                        handleSensorError(STO.getTime());
                         return;
                     }
+                }
+                for (TrackedObject obj : validObjects) {
+                    System.out.println("TRACKED TIME DEBUG: Object " + obj.getId() +
+                            " time=" + obj.getTime() +
+                            " at tick=" + time);
                 }
                 validObjects.addAll(STO.getTrackedObjectsObjects());
                 toRemove.add(STO);
@@ -254,13 +258,6 @@ public class LiDarService extends MicroService {
         }
 
 
-
-
-
-        // Send event only if there are objects to track
-        if(!validObjects.isEmpty()) {
-            sendEvent(new TrackedObjectsEvent(validObjects));
-        }
     }
 
 

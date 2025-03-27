@@ -178,11 +178,12 @@ private void handleSensorError(StampedDetectedObjects detectedObjects) {
     // Mark the camera as having an ERROR status
     camera.setStatus(Camera.status.ERROR);
     raiseSystemErrorFlag();
-    fusionSlam.setCrashTime(time);
+    FusionSlam fs = FusionSlam.getInstance();
+    fs.crashTime.compareAndSet(-1,detectedObjects.getTime());
     // Terminate this service
     terminate();
 
-    sendBroadcast(new CrashedBroadcast(camera.getKey(),this.time, CameraService.class,this));
+    sendBroadcast(new CrashedBroadcast(camera.getKey(),detectedObjects.getTime(), CameraService.class,this));
 
 }
 
@@ -225,7 +226,7 @@ private void handleSensorError(StampedDetectedObjects detectedObjects) {
         boolean statsError = false;
         StampedDetectedObjects detectedNow = camera.detectObjectsAtTime(time);
         if(detectedNow == null){
-            DetectStat DS =new DetectStat(time,0);
+            DetectStat DS =new DetectStat(time-1,0);
             stats.updateCurrentDetectedObjects(this,DS);
             return;
         }

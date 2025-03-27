@@ -4,6 +4,7 @@ import bgu.spl.mics.MicroService;
 import bgu.spl.mics.application.services.CameraService;
 import bgu.spl.mics.application.services.LiDarService;
 
+import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -80,15 +81,34 @@ public class StatisticalFolder {
 
     // Time-limited version for DetectStat objects
     public void SumDetectedObjectsWithTimeLimit(int timeLimit) {
-        int totalSum = camerasDetections.values().stream()
-                .flatMap(queue -> queue.stream()) // Stream of DetectStat objects
-                .filter(detectStat -> detectStat.getTime() <= timeLimit) // Only include DetectStats with time <= timeLimit
-                .mapToInt(DetectStat::getNumOfDetections) // Extract NumOfDetections from each object
-                .sum();
+        System.out.println("----- Starting SumDetectedObjectsWithTimeLimit with timeLimit = " + timeLimit + " -----");
 
-        System.out.println("TOTAL SUM of detections \uD83C\uDF07\uD83C\uDF07\uD83C\uDF07: " + totalSum);
+        int grandTotal = 0;
 
-        numDetectedObjects.set(totalSum);
+        for (Map.Entry<MicroService, BlockingQueue<DetectStat>> entry : camerasDetections.entrySet()) {
+            MicroService microService = entry.getKey();
+            BlockingQueue<DetectStat> queue = entry.getValue();
+
+            int microServiceSum = queue.stream()
+                    .peek(ds -> System.out.println("[DEBUG] [" + microService.getName() + "] Checking DetectStat - time: " + ds.getTime() + ", detections: " + ds.getNumOfDetections()))
+                    .filter(ds -> {
+                        boolean included = ds.getTime() < timeLimit;
+                        if (included) {
+                            System.out.println("[DEBUG] ✅ Included (time < limit): " + ds.getTime());
+                        } else {
+                            System.out.println("[DEBUG] ❌ Excluded (time >= limit): " + ds.getTime());
+                        }
+                        return included;
+                    })
+                    .mapToInt(DetectStat::getNumOfDetections)
+                    .sum();
+
+            System.out.println("[DEBUG] >>> MicroService '" + microService.getName() + "' contributed: " + microServiceSum + " detections.");
+            grandTotal += microServiceSum;
+        }
+
+        System.out.println("TOTAL SUM of detections 🌇🌇🌇: " + grandTotal);
+        numDetectedObjects.set(grandTotal);
     }
 
 
@@ -103,14 +123,34 @@ public class StatisticalFolder {
     }
 
     public void SumTrackedObjectsWithTimeLimit(int timeLimit) {
-        int totalSum = lidarsTrackings.values().stream()
-                .flatMap(queue -> queue.stream()) // Stream of TrackStat objects
-                .filter(trackStat -> trackStat.getTime() <= timeLimit) // Only include TrackStats with time <= timeLimit
-                .mapToInt(TrackStat::getNumOfTracks) // Extract NumOfTracks from each object
-                .sum();
+        System.out.println("----- Starting SumTrackedObjectsWithTimeLimit with timeLimit = " + timeLimit + " -----");
 
-        System.out.println("TOTAL SUM of tracktions \uD83C\uDF07\uD83C\uDF07\uD83C\uDF07: " + totalSum);
-        numTrackedObjects.set(totalSum);
+        int grandTotal = 0;
+
+        for (Map.Entry<MicroService, BlockingQueue<TrackStat>> entry : lidarsTrackings.entrySet()) {
+            MicroService microService = entry.getKey();
+            BlockingQueue<TrackStat> queue = entry.getValue();
+
+            int microServiceSum = queue.stream()
+                    .peek(ts -> System.out.println("[DEBUG] [" + microService.getName() + "] Checking TrackStat - time: " + ts.getTime() + ", tracks: " + ts.getNumOfTracks()))
+                    .filter(ts -> {
+                        boolean included = ts.getTime() < timeLimit;
+                        if (included) {
+                            System.out.println("[DEBUG] ✅ Included (time < limit): " + ts.getTime());
+                        } else {
+                            System.out.println("[DEBUG] ❌ Excluded (time >= limit): " + ts.getTime());
+                        }
+                        return included;
+                    })
+                    .mapToInt(TrackStat::getNumOfTracks)
+                    .sum();
+
+            System.out.println("[DEBUG] >>> MicroService '" + microService.getName() + "' contributed: " + microServiceSum + " tracks.");
+            grandTotal += microServiceSum;
+        }
+
+        System.out.println("TOTAL SUM of tracks 🌇🌇🌇: " + grandTotal);
+        numTrackedObjects.set(grandTotal);
     }
 
 

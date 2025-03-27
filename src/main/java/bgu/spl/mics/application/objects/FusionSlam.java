@@ -24,9 +24,8 @@ public class FusionSlam {
     private final List<Pose> poses;
     private final List<TrackedObject> trackedObjectsQueue;
     private  JsonObject outputData;
-    private AtomicInteger crashTime=new AtomicInteger(0);
-    private AtomicBoolean isCrashed = new AtomicBoolean(false);
-    private AtomicInteger numofCrashes =  new AtomicInteger(0) ;
+    public AtomicInteger crashTime=new AtomicInteger(-1);
+
     private final Lock posesLock;
     private final Lock landmarksLock;
     private final Lock trackedObjectsLock;
@@ -53,29 +52,12 @@ public class FusionSlam {
         return FusionSlamHolder.INSTANCE;
     }
 
-    public AtomicBoolean getIsCrashed() {
 
-        return isCrashed;
-    }
 
     public AtomicInteger getCrashTime() {
         return crashTime;
     }
-    public AtomicInteger getNumofCrashes() {
-        return numofCrashes;
-    }
-    public void setCrashTime(int x){
-        if (numofCrashes.get()==0) {
-            crashTime.set(x);
-        }
-    }
-    public void setNumofCrashes(int x){
-        numofCrashes.set(x);
-    }
 
-    public void setIsCrashed(boolean isCrashed) {
-        this.isCrashed.set(isCrashed);
-    }
 
     public JsonObject getOutputData(){
         return outputData;

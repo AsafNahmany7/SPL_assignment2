@@ -61,47 +61,30 @@ public class PoseService extends MicroService {
     protected void initialize() {
         System.out.println("poseser initialize");
         // Subscribe to TickBroadcast
+        // In PoseService.java, add to the TickBroadcast handler:
         subscribeBroadcast(TickBroadcast.class, tick -> {
-
-            if(isSystemErrorFlagRaised())
-                return;
-
             currentTick = tick.getCurrentTick();
-            this.time=currentTick;
-            List<Pose> poseList = gpsimu.getPoseList();
+            this.time = currentTick;
+            System.out.println("DEBUG-POSE: Processing tick " + currentTick);
 
-
-
-            // Check if we've already processed the pose with the highest time value
-            if (currentTick > maxTime) {
-                System.out.println("🚀 PoseService: All poses processed. Current tick: " +
-                        currentTick + ", Max pose time: " + maxTime);
-                updateOutputWithPoses();
-                terminate();
-                //sendBroadcast(new TerminatedBroadcast(getName(), PoseService.class));
-
-            } else{
-                // Process current pose if it exists
-                Pose currentPose = null;
-                for (Pose pose : poseList) {
-                    if (pose.getTime() == currentTick) {
-                        currentPose = pose;
-                        break;
-                    }
+            Pose currentPose = null;
+            for (Pose pose : gpsimu.getPoseList()) {
+                if (pose.getTime() == currentTick) {
+                    currentPose = pose;
+                    System.out.println("DEBUG-POSE: Found pose at time " + currentTick +
+                            ": x=" + currentPose.getX() +
+                            ", y=" + currentPose.getY() +
+                            ", yaw=" + currentPose.getYaw());
+                    break;
                 }
-
-                if (currentPose != null) {
-                    sendEvent(new PoseEvent(currentPose));
-                }
-
-
-
-
-
-
             }
 
-
+            if (currentPose != null) {
+                System.out.println("DEBUG-POSE: Sending PoseEvent for time " + currentTick);
+                sendEvent(new PoseEvent(currentPose));
+            } else {
+                System.out.println("DEBUG-POSE: No pose found for time " + currentTick);
+            }
         });
 
         // Subscribe to CrashedBroadcast

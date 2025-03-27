@@ -24,7 +24,7 @@ public class FusionSlamService extends MicroService {
     private final CountDownLatch latch;
     private List<MicroService> listofMicroServices;
     private StatisticalFolder stats = StatisticalFolder.getInstance();
-    private final AtomicInteger crashTime =  new AtomicInteger(-1);
+
 
     /**
      * Constructor for FusionSlamService.
@@ -67,9 +67,8 @@ public class FusionSlamService extends MicroService {
                StatisticalFolder stats = StatisticalFolder.getInstance();
 
                if(isSystemErrorFlagRaised()){
-                   System.out.println("ENTERED THE ERROR ZONE\uD83E\uDDCC\uD83E\uDDCC\uD83E\uDDCC\uD83E\uDDCC\uD83E\uDDCC");
-                   stats.SumDetectedObjectsRegular();
-                   stats.SumTrackedObjectsRegular();
+                   stats.SumDetectedObjectsWithTimeLimit(fusionSlam.getCrashTime().get());
+                   stats.SumTrackedObjectsWithTimeLimit(fusionSlam.getCrashTime().get());
                    generateERROROutput();
                }
                else{
@@ -91,8 +90,8 @@ public class FusionSlamService extends MicroService {
 
             if(ServicesDown()){
                 StatisticalFolder stats = StatisticalFolder.getInstance();
-                stats.SumDetectedObjectsWithTimeLimit(crashTime.get());
-                stats.SumTrackedObjectsWithTimeLimit(crashTime.get());
+                stats.SumDetectedObjectsWithTimeLimit(fusionSlam.getCrashTime().get());
+                stats.SumTrackedObjectsWithTimeLimit(fusionSlam.getCrashTime().get());
                 generateERROROutput();
                 terminate();
                 sendBroadcast(new TerminatedBroadcast(this.getName(), FusionSlamService.class,this));
@@ -272,9 +271,6 @@ public class FusionSlamService extends MicroService {
         }
     }
 
-    public void ChangeCrashTime(int time){
-        crashTime.compareAndSet(-1,time);
-    }
 
 
 
