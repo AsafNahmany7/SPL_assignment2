@@ -72,15 +72,18 @@ public class LiDarService extends MicroService {
         subscribeEvent(DetectObjectsEvent.class, (DetectObjectsEvent objEvent) -> {
             StampedDetectedObjects stampedDetectedObjects = objEvent.getDetectedObjects();
             LiDarDataBase dataBase = LiDarDataBase.getInstance();
-            int detectionTime = stampedDetectedObjects.getTime();
-            StampedTrackedObjects STO = new StampedTrackedObjects(detectionTime);
+            int detectionTime = objEvent.getDetectionTime();
+            StampedTrackedObjects STO = new StampedTrackedObjects(time);
 
             boolean errorFound = false;
             for(DetectedObject detectedObject: stampedDetectedObjects.getDetectedObjects()){
                 StampedCloudPoints currentCP = dataBase.searchStampedClouds(detectionTime,detectedObject.getId());
 
-                if(currentCP.getId().equals("ERROR"))
+                if(currentCP.getId().equals("ERROR")){
                     errorFound=true;
+                    handleSensorError(time);
+                    return;
+                }
 
 
 
@@ -233,12 +236,7 @@ public class LiDarService extends MicroService {
 
         for(StampedTrackedObjects STO : trackedObjects) {
             if(STO.getTime() + tracker.getFrequencey() <= time) {
-                for(TrackedObject TO : STO.getTrackedObjectsObjects()) {
-                    if(TO.getId().equals("ERROR")) {
-                        handleSensorError(STO.getTime());
-                        return;
-                    }
-                }
+
                 for (TrackedObject obj : validObjects) {
                     System.out.println("TRACKED TIME DEBUG: Object " + obj.getId() +
                             " time=" + obj.getTime() +

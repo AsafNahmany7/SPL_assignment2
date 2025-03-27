@@ -85,20 +85,28 @@ public class CameraService extends MicroService {
 
             time = tick.getCurrentTick();
             updateStats();
-
-            StampedDetectedObjects toSend = camera.detectObjectsAtTime(time-camera.getFrequency());
-            if(toSend != null) {
-                for(DetectedObject currentDO : toSend.getDetectedObjects()) {
-                    if(currentDO.getId().equals("ERROR")) {
+            StampedDetectedObjects currentDetection = camera.detectObjectsAtTime(time);
+            if(currentDetection != null) {
+                for (DetectedObject currentDO : currentDetection.getDetectedObjects()) {
+                    if (currentDO.getId().equals("ERROR")) {
                         errorFound = true;
-                        handleSensorError(toSend);
+                        handleSensorError(currentDetection);
+                        return;
                     }
                 }
-                if(!errorFound) {
-                    camera.getDetectedObjects().remove(toSend);
-                    sendEvent(new DetectObjectsEvent(toSend, camera.getFrequency()));
-                }
             }
+
+
+            StampedDetectedObjects toSend = camera.detectObjectsAtTime(time-camera.getFrequency());
+            if(toSend!=null){
+
+                camera.getDetectedObjects().remove(toSend);
+                sendEvent(new DetectObjectsEvent(toSend, time-camera.getFrequency()));
+
+            }
+
+
+
 
 
 
@@ -179,11 +187,11 @@ private void handleSensorError(StampedDetectedObjects detectedObjects) {
     camera.setStatus(Camera.status.ERROR);
     raiseSystemErrorFlag();
     FusionSlam fs = FusionSlam.getInstance();
-    fs.crashTime.compareAndSet(-1,detectedObjects.getTime());
+    fs.crashTime.compareAndSet(-1,time);
     // Terminate this service
     terminate();
 
-    sendBroadcast(new CrashedBroadcast(camera.getKey(),detectedObjects.getTime(), CameraService.class,this));
+    sendBroadcast(new CrashedBroadcast(camera.getKey(),time, CameraService.class,this));
 
 }
 
@@ -226,7 +234,7 @@ private void handleSensorError(StampedDetectedObjects detectedObjects) {
         boolean statsError = false;
         StampedDetectedObjects detectedNow = camera.detectObjectsAtTime(time);
         if(detectedNow == null){
-            DetectStat DS =new DetectStat(time-1,0);
+            DetectStat DS =new DetectStat(time,0);
             stats.updateCurrentDetectedObjects(this,DS);
             return;
         }
