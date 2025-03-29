@@ -25,6 +25,7 @@ public class LiDarService extends MicroService {
     int numOfCameras;
     private LiDarWorkerTracker tracker;
     private List<StampedTrackedObjects> trackedObjects;
+    private List<TrackedObject> lastFrame;
     private final CountDownLatch latch;
     private int lastTime;
     private boolean CamerasTerminatedFlag = false;
@@ -36,6 +37,7 @@ public class LiDarService extends MicroService {
         this.latch = latch;
         this.numOfCameras = numOfCameras;
         this.cameraTerminations = 0;
+        this.lastFrame = new ArrayList<>();
         this.trackedObjects = new ArrayList<>();
         this.stats=StatisticalFolder.getInstance();
     }
@@ -95,6 +97,7 @@ public class LiDarService extends MicroService {
                 STO.addTrackedObject(TO);
             }
             trackedObjects.add(STO);
+            lastFrame = STO.getTrackedObjectsObjects();
 
             if(!errorFound)
                 updateStats(STO);
@@ -164,17 +167,20 @@ public class LiDarService extends MicroService {
         JsonObject errorDetails = new JsonObject();
         errorDetails.addProperty("error", "");
         errorDetails.addProperty("faultySensor", "LiDAR" + tracker.getId());
-        errorDetails.addProperty("errorTime", lastTime);  // Add the error time
-        System.out.println("LiDAR error detected at time: " + lastTime);
+        errorDetails.addProperty("errorTime", time);  // Add the error time
+        System.out.println("LiDAR error detected at time: " + time);
 
         // Add last tracked objects if available
-        if (!tracker.getLastTrackedObjects().isEmpty()) {
+        if (lastFrame != null && !lastFrame.isEmpty()) {
             JsonObject lastTrackedObjectsFrame = new JsonObject();
             JsonObject lidarData = new JsonObject();
-            lidarData.addProperty("time", lastTime);
-            lidarData.add("trackedObjects", new Gson().toJsonTree(tracker.getLastTrackedObjects()));
+            lidarData.addProperty("time", lastFrame.get(0).getTime());
+            lidarData.add("trackedObjects", new Gson().toJsonTree(lastFrame));
             lastTrackedObjectsFrame.add("LiDAR" + tracker.getId(), lidarData);
             errorDetails.add("lastLiDARFrame", lastTrackedObjectsFrame);
+        }
+        else {
+            System.err.println("No tracked objects available for LiDAR" + tracker.getId() + " to update.");
         }
 
         fusionSlam.updateOutput("errorDetails", errorDetails);
@@ -198,8 +204,8 @@ public class LiDarService extends MicroService {
 
 
 
-   private void updateLastLiDARFrame() {
-        if (tracker.getLastTrackedObjects().isEmpty()) {
+    private void updateLastLiDARFrame() {
+        if (lastFrame == null || lastFrame.isEmpty()) {
             System.err.println("No tracked objects available for LiDAR" + tracker.getId() + " to update.");
             return;
         }
@@ -208,16 +214,8 @@ public class LiDarService extends MicroService {
         JsonObject lastLiDARFrame = new JsonObject();
         JsonObject lidarData = new JsonObject();
 
-        // Use the lastTime directly (which should be 4 for the error case)
-        lidarData.addProperty("time", lastTime);
-
-        // Create a list of tracked objects to include in the frame
-        List<TrackedObject> lastsFrames = new ArrayList<>();
-        for (TrackedObject obj : tracker.getLastTrackedObjects()) {
-            lastsFrames.add(obj);
-        }
-
-        lidarData.add("trackedObjects", new Gson().toJsonTree(lastsFrames));
+        lidarData.addProperty("time", lastFrame.get(0).getTime());
+        lidarData.add("trackedObjects", new Gson().toJsonTree(lastFrame));
         lastLiDARFrame.add("LiDAR" + tracker.getId(), lidarData);
         fusionSlam.updateOutput("lastLiDARFrame", lastLiDARFrame);
     }
