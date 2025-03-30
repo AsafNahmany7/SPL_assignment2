@@ -75,7 +75,7 @@ public class LiDarService extends MicroService {
             StampedDetectedObjects stampedDetectedObjects = objEvent.getDetectedObjects();
             LiDarDataBase dataBase = LiDarDataBase.getInstance();
             int detectionTime = objEvent.getDetectionTime();
-            StampedTrackedObjects STO = new StampedTrackedObjects(time);
+            StampedTrackedObjects STO = new StampedTrackedObjects(detectionTime);
 
             boolean errorFound = false;
             for(DetectedObject detectedObject: stampedDetectedObjects.getDetectedObjects()){
@@ -83,7 +83,7 @@ public class LiDarService extends MicroService {
 
                 if(currentCP.getId().equals("ERROR")){
                     errorFound=true;
-                    handleSensorError(time);
+                    handleSensorError(detectionTime);
                     return;
                 }
 
@@ -158,17 +158,17 @@ public class LiDarService extends MicroService {
 
 
     private void handleSensorError(int detTime) {
-        System.err.println("Error detected in LiDAR:\uD83D\uDC36\uD83D\uDC36 " + tracker.getId());
+        System.out.println("Error detected in LiDAR:\uD83D\uDC36\uD83D\uDC36 " + tracker.getId());
 
         updateLastLiDARFrame();
         // Update FusionSlam with error details
         FusionSlam fusionSlam = FusionSlam.getInstance();
 
         JsonObject errorDetails = new JsonObject();
-        errorDetails.addProperty("error", "");
-        errorDetails.addProperty("faultySensor", "LiDAR" + tracker.getId());
-        errorDetails.addProperty("errorTime", time);  // Add the error time
-        System.out.println("LiDAR error detected at time: " + time);
+        errorDetails.addProperty("error", "sensor Lidar " + tracker.getId() + " disconnected");
+        errorDetails.addProperty("faultySensor", "LiDarTrackerWorker " + tracker.getId());
+        errorDetails.addProperty("errorTime", detTime);  // Add the error time
+        System.out.println("LiDAR error detected at time: " + detTime);
 
         // Add last tracked objects if available
         if (lastFrame != null && !lastFrame.isEmpty()) {
@@ -192,7 +192,7 @@ public class LiDarService extends MicroService {
         // Broadcast CrashedBroadcast to stop all services
 
         FusionSlam fs = FusionSlam.getInstance();
-        fs.crashTime.compareAndSet(-1,time);
+        fs.crashTime.compareAndSet(-1,detTime);
         raiseSystemErrorFlag();
         fs.setCrasherServiceClass(LiDarService.class);
         terminate();
@@ -232,8 +232,8 @@ public class LiDarService extends MicroService {
     private int lastProcessedTick = -1;
 
     private void processAndSendTrackedEvent() {
-        if (lastProcessedTick == time) return; // למניעת כפילות בטיק הנוכחי
-        lastProcessedTick = time;
+        //if (lastProcessedTick == time) return; // למניעת כפילות בטיק הנוכחי
+        //lastProcessedTick = time;
 
         List<StampedTrackedObjects> toRemove = new ArrayList<>();
         List<TrackedObject> validObjects = new ArrayList<>();

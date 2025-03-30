@@ -70,20 +70,20 @@ public class LiDarDataBase {
             List<StampedCloudPoints> rawData = gson.fromJson(reader, listType);
 
             // ✅ Debugging: Print parsed JSON structure
-            System.out.println("🔹 Raw JSON Data Parsed:");
-            System.out.println(rawData);
+            //System.out.println("🔹 Raw JSON Data Parsed:");
+            //System.out.println(rawData);
 
             List<StampedCloudPoints> processedData = new ArrayList<>();
 
             for (StampedCloudPoints rawPoint : rawData) {
                 // ✅ Debugging: Check each `StampedCloudPoints` object
-                System.out.println("\n🔹 Processing StampedCloudPoints -> ID: " + rawPoint.getId() + ", Time: " + rawPoint.getTime());
+                //System.out.println("\n🔹 Processing StampedCloudPoints -> ID: " + rawPoint.getId() + ", Time: " + rawPoint.getTime());
 
                 // ✅ Step 1: Create StampedCloudPoints object from time and id
                 StampedCloudPoints a = new StampedCloudPoints(rawPoint.getId(), rawPoint.getTime());
 
                 // ✅ Debugging: Print `cloudPoints` raw structure
-                System.out.println("  📌 Raw CloudPoints Data: " + rawPoint.getCloudPoints());
+                //System.out.println("  📌 Raw CloudPoints Data: " + rawPoint.getCloudPoints());
 
                 // ✅ Step 2: Extract only x and y from cloudPoints
                 for (Object obj : rawPoint.getCloudPoints()) {
@@ -99,7 +99,7 @@ public class LiDarDataBase {
                         double y = (Double) point.get(1);
 
                         // ✅ Debugging: Print each extracted cloud point
-                        System.out.println("  ✅ Extracted CloudPoint -> X: " + x + ", Y: " + y);
+                        //System.out.println("  ✅ Extracted CloudPoint -> X: " + x + ", Y: " + y);
 
                         a.addCloudPoint(x, y);
                     } else {

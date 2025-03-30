@@ -257,24 +257,20 @@ private void handleSensorError(StampedDetectedObjects detectedObjects) {
 
         FusionSlam fusionSlam = FusionSlam.getInstance();
 
-        // שליפה של פלט קיים כדי לא לאפס מצלמות קודמות
-        JsonObject output = fusionSlam.getOutputData();
-        JsonObject lastCamerasFrame = output.has("lastCamerasFrame")
-                ? output.getAsJsonObject("lastCamerasFrame")
-                : new JsonObject();
-
+        // הכנה של מבנה חדש לעדכון
+        JsonObject lastCamerasFrame = new JsonObject();
         JsonObject cameraData = new JsonObject();
         cameraData.addProperty("time", LastFrame.getTime());
         cameraData.add("detectedObjects", new Gson().toJsonTree(LastFrame.getDetectedObjects()));
 
         lastCamerasFrame.add("Camera" + camera.getId(), cameraData);
 
-        // עדכון שמכיל את כל המצלמות עד כה
+        // שליחה בטוחה לעדכון משותף
         fusionSlam.updateOutput("lastCamerasFrame", lastCamerasFrame);
 
-        // לוג לבדיקה
         System.out.println("🔍 Added Camera" + camera.getId() + " to lastCamerasFrame");
     }
+
 
 
 
