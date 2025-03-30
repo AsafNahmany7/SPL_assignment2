@@ -39,6 +39,7 @@ public class CameraService extends MicroService {
     private List<StampedDetectedObjects> gotDetected;
     private StatisticalFolder stats;
     private boolean errorFound = false;
+    private StampedDetectedObjects lastSentFrame = null;
     /**
      * Constructor for CameraService.
      *
@@ -49,7 +50,6 @@ public class CameraService extends MicroService {
         this.camera = camera;
         this.latch = latch;
         LastFrame = null;
-
         lastProcessedTick = 0;
         gotDetected = new ArrayList<>();
         stats = StatisticalFolder.getInstance();
@@ -70,8 +70,6 @@ public class CameraService extends MicroService {
         subscribeBroadcast(TickBroadcast.class, tick -> {
             AtomicInteger detections = new AtomicInteger(0);
 
-
-
             if (camera.isEmpty()) {
                 System.err.println("No frames available for Camera" + camera.getId() + " to update.");
                 updateLastCamerasFrame();
@@ -80,9 +78,6 @@ public class CameraService extends MicroService {
                 sendBroadcast(new TerminatedBroadcast(this.getName(),CameraService.class,this));
                 return;
             }
-
-
-
 
             time = tick.getCurrentTick();
             updateStats();
@@ -95,24 +90,17 @@ public class CameraService extends MicroService {
                         return;
                     }
                 }
+                //LastFrame = currentDetection;
             }
-
-            if (currentDetection != null)
-                LastFrame = currentDetection;
 
             StampedDetectedObjects toSend = camera.detectObjectsAtTime(time-camera.getFrequency());
             if(toSend!=null){
-
+                LastFrame = toSend;
+                lastSentFrame = toSend;
                 camera.getDetectedObjects().remove(toSend);
                 sendEvent(new DetectObjectsEvent(toSend, time-camera.getFrequency()));
 
             }
-
-
-
-
-
-
         });
 
         // CrashedBroadcast handler
@@ -155,12 +143,22 @@ public class CameraService extends MicroService {
  */
 private void handleSensorError(StampedDetectedObjects detectedObjects) {
     System.err.println("Error detected in camera: " + camera.getId());
+
+    // ננסה להביא את הפריים הקודם ל־ERROR
+    //StampedDetectedObjects prev = camera.detectObjectsAtTime(time - camera.getFrequency());
+    if (lastSentFrame != null) {
+        LastFrame = lastSentFrame;
+    } else {
+        System.err.println("⚠️ No lastSentFrame available before ERROR at Camera" + camera.getId());
+        LastFrame = detectedObjects;  // fallback only if nothing else is available
+    }
+
     updateLastCamerasFrame();
 
     // Update FusionSlam with error details
     FusionSlam fusionSlam = FusionSlam.getInstance();
 
-    // Find the error description from the detected objects
+    // Find the error description
     String errorDescription = detectedObjects.getDetectedObjects().stream()
             .filter(obj -> "ERROR".equals(obj.getId()))
             .findFirst()
@@ -170,40 +168,57 @@ private void handleSensorError(StampedDetectedObjects detectedObjects) {
     JsonObject errorDetails = new JsonObject();
     errorDetails.addProperty("error", errorDescription);
     errorDetails.addProperty("faultySensor", "Camera" + camera.getId());
-    errorDetails.addProperty("errorTime", detectedObjects.getTime());  // Add the error time
-    System.out.println("Camera error detected at time: " + detectedObjects.getTime());
+    errorDetails.addProperty("errorTime", detectedObjects.getTime());
 
-// Only include last frame if one exists
-    if (LastFrame != null) {
-        JsonObject lastCamerasFrame = new JsonObject();
-        JsonObject cameraData = new JsonObject();
-        cameraData.addProperty("time", LastFrame.getTime());
-        cameraData.add("detectedObjects", new Gson().toJsonTree(LastFrame.getDetectedObjects()));
-        lastCamerasFrame.add("Camera" + camera.getId(), cameraData);
-        errorDetails.add("lastCamerasFrame", lastCamerasFrame);
-    }
+    JsonObject lastCamerasFrame = new JsonObject();
+    JsonObject cameraData = new JsonObject();
+    cameraData.addProperty("time", detectedObjects.getTime());
+    cameraData.add("detectedObjects", new Gson().toJsonTree(detectedObjects.getDetectedObjects()));
+    lastCamerasFrame.add("Camera" + camera.getId(), cameraData);
 
-    else {
-        System.err.println("No previous valid frame available for Camera" + camera.getId());
-    }
+    errorDetails.add("lastCamerasFrame", lastCamerasFrame);
 
     fusionSlam.updateOutput("errorDetails", errorDetails);
 
-
-
-
-    // Mark the camera as having an ERROR status
     camera.setStatus(Camera.status.ERROR);
-    raiseSystemErrorFlag();
     FusionSlam fs = FusionSlam.getInstance();
-    fs.crashTime.compareAndSet(-1,time);
-    // Terminate this service
+    fs.crashTime.compareAndSet(-1, time);
+
+    raiseSystemErrorFlag();
     terminate();
-
-    sendBroadcast(new CrashedBroadcast(camera.getKey(),time, CameraService.class,this));
-
+    sendBroadcast(new CrashedBroadcast(camera.getKey(), time, CameraService.class, this));
 }
 
+
+/**
+ * Updates the FusionSlam output with error details and the last frame of detected objects.
+ *
+ * @param detectedObjects The detected objects that include the error.
+ */
+        private void updateErrorLog(StampedDetectedObjects detectedObjects) {
+            FusionSlam fusionSlam = FusionSlam.getInstance();
+
+            // Find the error description from the detected objects
+            String errorDescription = detectedObjects.getDetectedObjects().stream()
+                    .filter(obj -> "ERROR".equals(obj.getId()))
+                    .findFirst()
+                    .map(DetectedObject::getDescription)
+                    .orElse("Unknown error");
+
+            JsonObject errorDetails = new JsonObject();
+            errorDetails.addProperty("error", errorDescription);
+            errorDetails.addProperty("faultySensor", "Camera" + camera.getId());
+
+            JsonObject lastCamerasFrame = new JsonObject();
+            JsonObject cameraData = new JsonObject();
+            cameraData.addProperty("time", detectedObjects.getTime());
+            cameraData.add("detectedObjects", new Gson().toJsonTree(detectedObjects.getDetectedObjects()));
+            lastCamerasFrame.add("Camera" + camera.getId(), cameraData);
+
+            errorDetails.add("lastCamerasFrame", lastCamerasFrame);
+
+            fusionSlam.updateOutput("errorDetails", errorDetails);
+        }
 
     public Camera getCamera() {
 
@@ -233,25 +248,35 @@ private void handleSensorError(StampedDetectedObjects detectedObjects) {
     /**
  * Updates the last frame of the camera in the FusionSlam output.
  */
-        private void updateLastCamerasFrame() {
-            if (LastFrame == null) {
-                System.err.println("No frames detected at all at Camera: " + camera.getId());
-                return;
-           }
-
-            FusionSlam fusionSlam = FusionSlam.getInstance();
-            JsonObject lastCamerasFrame = new JsonObject();
-            JsonObject cameraData = new JsonObject();
-
-            System.out.println(" LAST FRAME TIME IS\uD83C\uDF44\uD83C\uDF44\uD83C\uDF44\uD83C\uDF44\uD83C\uDF44 ::::::: "+ LastFrame.getTime());
-
-            //StampedDetectedObjects lastFrame = camera.getDetectedObjects().get(camera.getDetectedObjects().size() - 1);
-            cameraData.addProperty("time", LastFrame.getTime());
-            cameraData.add("detectedObjects", new Gson().toJsonTree(LastFrame.getDetectedObjects()));
-            lastCamerasFrame.add("Camera" + camera.getId(), cameraData);
-
-            fusionSlam.updateOutput("lastCamerasFrame", lastCamerasFrame);
+    private void updateLastCamerasFrame() {
+        if (LastFrame == null) {
+            System.err.println("No frames detected at all at Camera: " + camera.getId());
+            return;
         }
+
+        FusionSlam fusionSlam = FusionSlam.getInstance();
+
+        // שליפה של פלט קיים כדי לא לאפס מצלמות קודמות
+        JsonObject output = fusionSlam.getOutputData();
+        JsonObject lastCamerasFrame = output.has("lastCamerasFrame")
+                ? output.getAsJsonObject("lastCamerasFrame")
+                : new JsonObject();
+
+        JsonObject cameraData = new JsonObject();
+        cameraData.addProperty("time", LastFrame.getTime());
+        cameraData.add("detectedObjects", new Gson().toJsonTree(LastFrame.getDetectedObjects()));
+
+        lastCamerasFrame.add("Camera" + camera.getId(), cameraData);
+
+        // עדכון שמכיל את כל המצלמות עד כה
+        fusionSlam.updateOutput("lastCamerasFrame", lastCamerasFrame);
+
+        // לוג לבדיקה
+        System.out.println("🔍 Added Camera" + camera.getId() + " to lastCamerasFrame");
+    }
+
+
+
 
 
 }

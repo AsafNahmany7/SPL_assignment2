@@ -50,4 +50,12 @@ public class LiDarWorkerTracker {
         this.status = status;
     }
 
+    public void setLastTrackedObjects(List<TrackedObject> trackedObjects) {
+        lastTrackedObjects.clear();
+        if (trackedObjects != null) {
+            lastTrackedObjects.addAll(trackedObjects);
+        }
+    }
+
+
 }

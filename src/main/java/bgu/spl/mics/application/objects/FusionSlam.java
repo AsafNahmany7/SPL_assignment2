@@ -1,13 +1,11 @@
 package bgu.spl.mics.application.objects;
 
 import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.Gson;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Lock;
@@ -202,22 +200,47 @@ public class FusionSlam {
         updateOutput("poses", posesJsonObject);
     }
 
-    public void updateOutput(String key, JsonObject value) {
+    public void updateOutput(String key, JsonObject newData) {
         outputLock.lock();
         try {
-            outputData.add(key, value);
+            // אם יש מפתח כזה והוא גם JsonObject – נעדכן בתוכו במקום לדרוס
+            if (outputData.has(key) && outputData.get(key).isJsonObject()) {
+                JsonObject existingData = outputData.getAsJsonObject(key);
+                for (Map.Entry<String, JsonElement> entry : newData.entrySet()) {
+                    existingData.add(entry.getKey(), entry.getValue());
+                }
+            } else {
+                outputData.add(key, newData);
+            }
         } finally {
             outputLock.unlock();
         }
     }
 
+
+
+
     public JsonObject generateOutput() {
         JsonObject output = new JsonObject();
+
+        // הוסף את מה שכבר נשמר על ידי updateOutput (כמו lastCamerasFrame)
+        outputLock.lock();
+        try {
+            for (Map.Entry<String, JsonElement> entry : outputData.entrySet()) {
+                output.add(entry.getKey(), entry.getValue());
+            }
+        } finally {
+            outputLock.unlock();
+        }
+
+        // הוסף את השדות הקבועים הנוספים
         output.add("poses", generatePoseArray());
         output.add("statistics", generateStatistics());
         output.add("landMarks", generateLandmarkData());
+
         return output;
     }
+
 
     private JsonArray generatePoseArray() {
         JsonArray poseArray = new JsonArray();
@@ -274,6 +297,26 @@ public class FusionSlam {
         statsJson.addProperty("numLandmarks", stats.getNumLandmarks());
         return statsJson;
     }
+
+    public void updateLastLiDarFrame(String lidarServiceName, List<TrackedObject> trackedObjects) {
+        JsonObject lastLiDARFrame = outputData.has("lastLiDarWorkerTrackersFrame")
+                ? outputData.getAsJsonObject("lastLiDarWorkerTrackersFrame")
+                : new JsonObject();
+
+        // שמירה רק של המסגרת האחרונה (דריסה במקום הוספה)
+        JsonArray objectsArray = new JsonArray();
+        for (TrackedObject obj : trackedObjects) {
+            objectsArray.add(new Gson().toJsonTree(obj));
+        }
+
+        lastLiDARFrame.remove(lidarServiceName); // מחיקה מפורשת של הקודם
+        lastLiDARFrame.add(lidarServiceName, objectsArray);
+
+        updateOutput("lastLiDarWorkerTrackersFrame", lastLiDARFrame);
+    }
+
+
+
 
     // Add this method to FusionSlam
     public void reset() {

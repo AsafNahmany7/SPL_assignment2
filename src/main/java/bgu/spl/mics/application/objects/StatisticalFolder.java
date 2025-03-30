@@ -4,7 +4,9 @@ import bgu.spl.mics.MicroService;
 import bgu.spl.mics.application.services.CameraService;
 import bgu.spl.mics.application.services.LiDarService;
 
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -164,6 +166,20 @@ public class StatisticalFolder {
 
 
 
+    public void printAllMicroServices() {
+        // סט שיאסוף את כל המפתחות משני המערכים
+        Set<MicroService> allMicroServices = new HashSet<>();
+
+        // הוספת המפתחות מכל אחד מה-HashMap-ים
+        allMicroServices.addAll(camerasDetections.keySet());
+        allMicroServices.addAll(lidarsTrackings.keySet());
+
+        // הדפסת כל ה-MicroService-ים שנמצאו
+        System.out.println("All MicroServices in StatsFolder's HashMap:");
+        for (MicroService microService : allMicroServices) {
+            System.out.println(microService.getName()); // או microService.toString() אם אין getName()
+        }
+    }
 
 
     public void setNumDetectedObjects(int newValue) {

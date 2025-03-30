@@ -87,17 +87,14 @@ public class FusionSlamService extends MicroService {
         subscribeBroadcast(CrashedBroadcast.class, crashed -> {
             System.out.println("FusionSlamService received crash notification from: " + crashed.getServiceName());
 
-
             if(ServicesDown()){
                 StatisticalFolder stats = StatisticalFolder.getInstance();
-                stats.SumDetectedObjectsWithTimeLimit(fusionSlam.getCrashTime().get());
+                stats.SumDetectedObjectsWithTimeLimit(fusionSlam.getCrashTime().get());//מעדכן כמה אובייקטים עד זמן הקריסה
                 stats.SumTrackedObjectsWithTimeLimit(fusionSlam.getCrashTime().get());
                 generateERROROutput();
                 terminate();
                 sendBroadcast(new TerminatedBroadcast(this.getName(), FusionSlamService.class,this));
             }
-
-
         });
 
         latch.countDown();
@@ -173,6 +170,7 @@ public class FusionSlamService extends MicroService {
     }
 
     private void generateERROROutput() {
+        stats.printAllMicroServices();
         System.out.println("FusionSlamService: Generating ERROR output");
 
         try {
@@ -205,19 +203,20 @@ public class FusionSlamService extends MicroService {
                 if (errorDetails.has("faultySensor")) {
                     output.add("faultySensor", errorDetails.get("faultySensor"));
                 }
-
-                // Add camera frame if available
-                if (errorDetails.has("lastCamerasFrame")) {
-                    output.add("lastCamerasFrame", errorDetails.get("lastCamerasFrame"));
-                }
             }
 
-            // Add LiDAR frames if available - note the field name change
-            if (outputData.has("lastLiDARFrame")) {
-                output.add("lastLiDarWorkerTrackersFrame", outputData.get("lastLiDARFrame"));
+            // ✅ תיקון: שליפת lastCamerasFrame ממקום נכון
+            if (outputData.has("lastCamerasFrame")) {
+                output.add("lastCamerasFrame", outputData.get("lastCamerasFrame"));
             }
 
-            // Add poses if available
+            // LiDAR frames
+            if (outputData.has("lastLiDarWorkerTrackersFrame")) {
+                output.add("lastLiDarWorkerTrackersFrame", outputData.get("lastLiDarWorkerTrackersFrame"));
+            }
+
+
+            // Poses
             if (outputData.has("poses")) {
                 JsonObject posesObj = outputData.getAsJsonObject("poses");
                 if (posesObj.has("poses")) {
@@ -225,21 +224,20 @@ public class FusionSlamService extends MicroService {
                 }
             }
 
-            // Create statistics object
+            // Statistics
             JsonObject statsJson = new JsonObject();
-            statsJson.addProperty("systemRuntime", errorTime);  // Use error time here
+            statsJson.addProperty("systemRuntime", errorTime);
             statsJson.addProperty("numDetectedObjects", stats.getNumDetectedObjects());
             statsJson.addProperty("numTrackedObjects", stats.getNumTrackedObjects());
             statsJson.addProperty("numLandmarks", stats.getNumLandmarks());
 
-            // Add landmarks to statistics object
+            // Landmarks
             JsonObject landmarksObject = new JsonObject();
             for (LandMark landmark : fusionSlam.getLandmarks()) {
                 JsonObject landmarkJson = new JsonObject();
                 landmarkJson.addProperty("id", landmark.getId());
                 landmarkJson.addProperty("description", landmark.getDescription());
 
-                // Add coordinates
                 JsonArray coordinatesArray = new JsonArray();
                 for (CloudPoint point : landmark.getCoordinates()) {
                     JsonObject pointJson = new JsonObject();
@@ -252,13 +250,19 @@ public class FusionSlamService extends MicroService {
                 landmarksObject.add(landmark.getId(), landmarkJson);
             }
 
-            // Add landmarks to statistics
             statsJson.add("landMarks", landmarksObject);
-
-            // Add statistics to output
             output.add("statistics", statsJson);
 
-            // Write to file
+            // 🆕 הדפסת בונוס לבדיקה (אופציונלי אבל חשוב לדיבוג)
+            System.out.println("🔍 Cameras in lastCamerasFrame:");
+            if (output.has("lastCamerasFrame")) {
+                JsonObject lastCams = output.getAsJsonObject("lastCamerasFrame");
+                for (String key : lastCams.keySet()) {
+                    System.out.println(" - " + key);
+                }
+            }
+
+            // כתיבה לקובץ
             try (FileWriter writer = new FileWriter(outputPath)) {
                 Gson gson = new GsonBuilder().setPrettyPrinting().create();
                 gson.toJson(output, writer);
@@ -270,6 +274,7 @@ public class FusionSlamService extends MicroService {
             e.printStackTrace();
         }
     }
+
 
 
 

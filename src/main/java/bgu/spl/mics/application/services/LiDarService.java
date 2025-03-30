@@ -228,33 +228,32 @@ public class LiDarService extends MicroService {
 
     }
 
-    private void processAndSendTrackedEvent(){
+    private int lastProcessedTick = -1;
+
+    private void processAndSendTrackedEvent() {
+        if (lastProcessedTick == time) return; // למניעת כפילות בטיק הנוכחי
+        lastProcessedTick = time;
+
         List<StampedTrackedObjects> toRemove = new ArrayList<>();
         List<TrackedObject> validObjects = new ArrayList<>();
 
-        for(StampedTrackedObjects STO : trackedObjects) {
-            if(STO.getTime() + tracker.getFrequencey() <= time) {
-
-                for (TrackedObject obj : validObjects) {
-                    System.out.println("TRACKED TIME DEBUG: Object " + obj.getId() +
-                            " time=" + obj.getTime() +
-                            " at tick=" + time);
-                }
+        for (StampedTrackedObjects STO : trackedObjects) {
+            if (STO.getTime() + tracker.getFrequencey() <= time) {
                 validObjects.addAll(STO.getTrackedObjectsObjects());
                 toRemove.add(STO);
             }
         }
 
-        // Remove processed objects
         trackedObjects.removeAll(toRemove);
 
-        // Send event only if there are objects to track
-        if(!validObjects.isEmpty()) {
+        if (!validObjects.isEmpty()) {
+            FusionSlam fusionSlam = FusionSlam.getInstance();
+            fusionSlam.updateLastLiDarFrame(getName(), validObjects);
             sendEvent(new TrackedObjectsEvent(validObjects));
         }
-
-
     }
+
+
 
 
 

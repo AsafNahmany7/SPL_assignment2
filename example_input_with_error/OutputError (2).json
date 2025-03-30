@@ -1,0 +1,65 @@
+{
+  "error": "<error>",
+  "faultySensor": "<Sensor's Class Name> <id>",
+  "lastCameraFrames": {
+    "Camera <id>": {
+      "time": <time>,
+      "detectedObjects": [
+      ]
+    },
+    "Camera <id>": {
+      "time": <time>,
+      "detectedObjects": [
+      ]
+    }
+    ...
+  },
+  "lastLidarFrames": {
+    "LiDarTrackerWorker<id>": [
+      {
+        "id": <id>,
+        "time": <time>,
+        "description": "...",
+        "coordinates": [...]
+      },
+      ...
+    ],
+    "LiDarTrackerWorker<id>": [
+      {
+        "id": "<id>",
+        "time": <time>,
+        "description": "...",
+        "coordinates": [...]
+      },
+      ...
+      can also be:
+      {
+        "time": <time>,
+        "id": "<id>",
+        "cloudPoints": [...]
+        }
+    ]
+  },
+  "poses": [
+    {
+      "time": <time>,
+      "x": <x>,
+      "y": <y>,
+      "yaw": <yaw>
+    },
+  ],
+  "statistics": {
+    "systemRuntime": ...,
+    "numDetectedObjects": ...,
+    "numTrackedObjects": ...,
+    "numLandmarks": ,
+    "landMarks": {
+      "<id>": {
+        "id": "<id>",
+        "description": "...",
+        "coordinates": [...]
+      },
+      ...
+    }
+  }
+}
