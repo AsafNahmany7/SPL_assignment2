@@ -100,34 +100,45 @@ public class MessageBusImpl implements MessageBus {
 
 	}
 
-	
+
 	@Override
 	public <T> Future<T> sendEvent(Event<T> e) {
-		if(!EventsSubscribersQueues.containsKey(e.getClass())) {
+		if (!EventsSubscribersQueues.containsKey(e.getClass())) {
 			return null;
 		}
 
-		if(EventsSubscribersQueues.get(e.getClass()).isEmpty()) {
+		if (EventsSubscribersQueues.get(e.getClass()).isEmpty()) {
 			return null;
 		}
 
-
-		MicroService m = EventsSubscribersQueues.get(e.getClass()).poll();
+		MicroService m = null;
 		try {
+			// Use take() instead of poll() to block until a microservice is available
+			m = EventsSubscribersQueues.get(e.getClass()).take();
+
+			// Add the event to the microservice's queue
 			ServicesMessageQueues.get(m).put(e);
-		} catch (InterruptedException ex) {
-			Thread.currentThread().interrupt();
-		}
 
-		try {
+			// Put the microservice back in the queue
 			EventsSubscribersQueues.get(e.getClass()).put(m);
+
+			// Create and register the future for this event
+			Future<T> output = new Future<>();
+			EventsFutures.put(e, output);
+			return output;
 		} catch (InterruptedException ex) {
 			Thread.currentThread().interrupt();
-		}
 
-		Future<T> output = new Future<>();
-		EventsFutures.put(e, output);
-		return output;
+			// If we managed to get a microservice before interruption, put it back
+			if (m != null) {
+				try {
+					EventsSubscribersQueues.get(e.getClass()).put(m);
+				} catch (InterruptedException putEx) {
+					Thread.currentThread().interrupt();
+				}
+			}
+			return null;
+		}
 	}
 
 	@Override
