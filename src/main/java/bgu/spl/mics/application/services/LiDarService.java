@@ -192,11 +192,12 @@ public class LiDarService extends MicroService {
         // Broadcast CrashedBroadcast to stop all services
 
         FusionSlam fs = FusionSlam.getInstance();
-        fs.crashTime.compareAndSet(-1,detTime);
+        fs.crashTime.compareAndSet(-1,time);
         raiseSystemErrorFlag();
+        fs.setCrasherServiceClass(LiDarService.class);
         terminate();
         System.out.println("Lidar sending crash⚽");
-        sendBroadcast(new CrashedBroadcast(getName(),detTime,LiDarService.class,this));
+        sendBroadcast(new CrashedBroadcast(getName(),time,LiDarService.class,this));
 
         // Terminate this service
 

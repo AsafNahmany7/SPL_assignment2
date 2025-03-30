@@ -185,6 +185,7 @@ private void handleSensorError(StampedDetectedObjects detectedObjects) {
     fs.crashTime.compareAndSet(-1, time);
 
     raiseSystemErrorFlag();
+    fs.setCrasherServiceClass(CameraService.class);
     terminate();
     sendBroadcast(new CrashedBroadcast(camera.getKey(), time, CameraService.class, this));
 }

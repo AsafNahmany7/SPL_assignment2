@@ -1,5 +1,6 @@
 package bgu.spl.mics.application.objects;
 
+import bgu.spl.mics.MicroService;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -8,6 +9,7 @@ import com.google.gson.Gson;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
@@ -23,7 +25,7 @@ public class FusionSlam {
     private final List<TrackedObject> trackedObjectsQueue;
     private  JsonObject outputData;
     public AtomicInteger crashTime=new AtomicInteger(-1);
-
+    private AtomicReference<Class<?>> crasherServiceClass = new AtomicReference<>(null);
     private final Lock posesLock;
     private final Lock landmarksLock;
     private final Lock trackedObjectsLock;
@@ -324,6 +326,15 @@ public class FusionSlam {
         poses.clear();
         trackedObjectsQueue.clear();
         outputData = new JsonObject(); // Create a fresh JsonObject
+    }
+
+
+    public Class<?> getCrasherServiceClass() {
+        return crasherServiceClass.get();
+    }
+
+    public void setCrasherServiceClass(Class<?> serviceClass) {
+        crasherServiceClass.compareAndSet(null, serviceClass);
     }
 
 

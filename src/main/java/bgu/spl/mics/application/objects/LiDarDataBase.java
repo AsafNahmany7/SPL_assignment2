@@ -23,23 +23,20 @@ public class LiDarDataBase {
         return stampedCloud;
     }
 
-    public StampedCloudPoints searchStampedClouds(int time,String id) {
-        //Assume correct input
+    public StampedCloudPoints searchStampedClouds(int time, String id) {
+        // First try exact match (original logic)
         StampedCloudPoints output = null;
-        //System.out.println("\uD83C\uDFB2 מתחיל לחפש");
+
         for (StampedCloudPoints stampedCloudPoints : stampedCloud) {
-            //System.out.println(stampedCloudPoints.getTime() + "--->" + time);
-            //System.out.println(stampedCloudPoints.getId() + "--->" + id);
-            if (stampedCloudPoints.getTime() == time) {
-                if (stampedCloudPoints.getId().equals(id)) {
-                    //System.out.println("מצאתי ! \uD83D\uDECE\uFE0F");
-                    output = stampedCloudPoints;
-                    break;
-                }
+            if (stampedCloudPoints.getTime() == time && stampedCloudPoints.getId().equals(id)) {
+                return stampedCloudPoints;
             }
         }
-        return output;
+
+        // If no exact match, find closest previous time
+        return findClosestTimeMatch(time, id);
     }
+
 
     private LiDarDataBase() {
         this.stampedCloud = new ArrayList<>();
@@ -127,5 +124,30 @@ public class LiDarDataBase {
             e.printStackTrace();
             return null;
         }
+    }
+    public StampedCloudPoints findClosestTimeMatch(int targetTime, String objectId) {
+        // First check if there's an ERROR entry at any time <= targetTime
+        for (StampedCloudPoints points : stampedCloud) {
+            if (points.getTime() <= targetTime && points.getId().equals("ERROR")) {
+                System.out.println("Found ERROR entry at time " + points.getTime());
+                return points;
+            }
+        }
+
+        // If no ERROR found, proceed with finding closest time match
+        StampedCloudPoints closest = null;
+        int closestDiff = Integer.MAX_VALUE;
+
+        for (StampedCloudPoints points : stampedCloud) {
+            if (points.getTime() <= targetTime && points.getId().equals(objectId)) {
+                int diff = targetTime - points.getTime();
+                if (diff < closestDiff) {
+                    closestDiff = diff;
+                    closest = points;
+                }
+            }
+        }
+
+        return closest;
     }
 }

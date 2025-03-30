@@ -67,8 +67,18 @@ public class FusionSlamService extends MicroService {
                StatisticalFolder stats = StatisticalFolder.getInstance();
 
                if(isSystemErrorFlagRaised()){
-                   stats.SumDetectedObjectsWithTimeLimit(fusionSlam.getCrashTime().get());
-                   stats.SumTrackedObjectsWithTimeLimit(fusionSlam.getCrashTime().get());
+                   if(fusionSlam.getCrasherServiceClass().equals(CameraService.class)){
+                       stats.SumDetectedObjectsWithTimeLimit(fusionSlam.getCrashTime().get());
+                       stats.SumTrackedObjectsWithTimeLimit(fusionSlam.getCrashTime().get()+1);
+                   }
+                   else{
+                       stats.SumDetectedObjectsWithTimeLimit(fusionSlam.getCrashTime().get()+1);
+                       stats.SumTrackedObjectsWithTimeLimit(fusionSlam.getCrashTime().get());
+
+                   }
+
+
+
                    generateERROROutput();
                }
                else{
