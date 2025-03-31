@@ -26,14 +26,20 @@ public class LiDarDataBase {
     public StampedCloudPoints searchStampedClouds(int time, String id) {
         // First try exact match (original logic)
         StampedCloudPoints output = null;
-
+        System.out.println("מחפש התאמת stamped");
         for (StampedCloudPoints stampedCloudPoints : stampedCloud) {
+            if (stampedCloudPoints.getTime() == time && stampedCloudPoints.getId().equals("ERROR")){
+                System.out.println("מצא התאמת stamped של ERROR");
+                return stampedCloudPoints;
+            }
             if (stampedCloudPoints.getTime() == time && stampedCloudPoints.getId().equals(id)) {
+                System.out.println("מצא התאמת stamped");
                 return stampedCloudPoints;
             }
         }
 
         // If no exact match, find closest previous time
+        System.out.println("לא מצא התאמת stamped, עובר למצוא קרוב ממקודם");
         return findClosestTimeMatch(time, id);
     }
 
@@ -128,12 +134,14 @@ public class LiDarDataBase {
     public StampedCloudPoints findClosestTimeMatch(int targetTime, String objectId) {
         // First check if there's an ERROR entry at any time <= targetTime
         for (StampedCloudPoints points : stampedCloud) {
+            System.out.println(points.getTime() + " - " + points.getId());
             if (points.getTime() <= targetTime && points.getId().equals("ERROR")) {
                 System.out.println("Found ERROR entry at time " + points.getTime());
                 return points;
             }
         }
 
+        System.out.println("לא נמצא error בdatabase עד זמן זה");
         // If no ERROR found, proceed with finding closest time match
         StampedCloudPoints closest = null;
         int closestDiff = Integer.MAX_VALUE;

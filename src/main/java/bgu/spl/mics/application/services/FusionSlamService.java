@@ -68,10 +68,12 @@ public class FusionSlamService extends MicroService {
 
                if(isSystemErrorFlagRaised()){
                    if(fusionSlam.getCrasherServiceClass().equals(CameraService.class)){
+                       System.out.println("המצלמה גרמה לcrash");
                        stats.SumDetectedObjectsWithTimeLimit(fusionSlam.getCrashTime().get());
                        stats.SumTrackedObjectsWithTimeLimit(fusionSlam.getCrashTime().get()+1);
                    }
                    else{
+                       System.out.println("הלידר גרם לcrash");
                        stats.SumDetectedObjectsWithTimeLimit(fusionSlam.getCrashTime().get()+1);
                        stats.SumTrackedObjectsWithTimeLimit(fusionSlam.getCrashTime().get());
 
@@ -82,6 +84,7 @@ public class FusionSlamService extends MicroService {
                    generateERROROutput();
                }
                else{
+                   System.out.println("אף אחד לא קרס !");
                    stats.SumDetectedObjectsRegular();
                    stats.SumTrackedObjectsRegular();
                    generateFinalOutput();
@@ -98,6 +101,7 @@ public class FusionSlamService extends MicroService {
             System.out.println("FusionSlamService received crash notification from: " + crashed.getServiceName());
 
             if(ServicesDown()){
+                System.out.println("כולם סיימו כשמקבל crashed");
                 StatisticalFolder stats = StatisticalFolder.getInstance();
                 stats.SumDetectedObjectsWithTimeLimit(fusionSlam.getCrashTime().get());//מעדכן כמה אובייקטים עד זמן הקריסה
                 stats.SumTrackedObjectsWithTimeLimit(fusionSlam.getCrashTime().get());
@@ -123,6 +127,7 @@ public class FusionSlamService extends MicroService {
                 return false;
             }
         }
+        System.out.println("all the services DOWN");
         return true;
     }
 
