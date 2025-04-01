@@ -32,7 +32,7 @@ public class LiDarService extends MicroService {
     private StatisticalFolder stats;
 
     public LiDarService(LiDarWorkerTracker tracker, CountDownLatch latch,int numOfCameras) {
-        super("LidarWorker " + tracker.getId());
+        super("LiDarTrackerWorker " + tracker.getId());
         this.tracker = tracker;
         this.latch = latch;
         this.numOfCameras = numOfCameras;
@@ -200,7 +200,7 @@ public class LiDarService extends MicroService {
         raiseSystemErrorFlag();
         fs.setCrasherServiceClass(LiDarService.class);
         terminate();
-        System.out.println("Lidar sending crash⚽");
+        System.out.println("Lidar sending crash⚽ in time: " + detTime);
         sendBroadcast(new CrashedBroadcast(getName(),detTime,LiDarService.class,this));
 
         // Terminate this service

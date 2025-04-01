@@ -103,8 +103,21 @@ public class FusionSlamService extends MicroService {
             if(ServicesDown()){
                 System.out.println("כולם סיימו כשמקבל crashed");
                 StatisticalFolder stats = StatisticalFolder.getInstance();
-                stats.SumDetectedObjectsWithTimeLimit(fusionSlam.getCrashTime().get());//מעדכן כמה אובייקטים עד זמן הקריסה
-                stats.SumTrackedObjectsWithTimeLimit(fusionSlam.getCrashTime().get());
+                if(fusionSlam.getCrasherServiceClass().equals(CameraService.class)){
+                    int cameraLimit = fusionSlam.getCrashTime().get();
+                    int trackLimit = fusionSlam.getCrashTime().get()+1;
+                    System.out.println("📷 Camera crash detected: Using detection limit " + cameraLimit +
+                            " and tracking limit " + trackLimit);
+                    stats.SumDetectedObjectsWithTimeLimit(cameraLimit);
+                    stats.SumTrackedObjectsWithTimeLimit(trackLimit);
+                } else {
+                    int detectionLimit = fusionSlam.getCrashTime().get()+1;
+                    int trackLimit = fusionSlam.getCrashTime().get();
+                    System.out.println("📡 LiDAR crash detected: Using detection limit " + detectionLimit +
+                            " and tracking limit " + trackLimit);
+                    stats.SumDetectedObjectsWithTimeLimit(detectionLimit);
+                    stats.SumTrackedObjectsWithTimeLimit(trackLimit);
+                }
                 generateERROROutput();
                 terminate();
                 sendBroadcast(new TerminatedBroadcast(this.getName(), FusionSlamService.class,this));
